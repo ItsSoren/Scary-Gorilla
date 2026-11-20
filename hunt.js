@@ -1,4 +1,4 @@
-import {cellOf, inShelter, levels, monsterOpen, passageAt, point, tile} from './station.js?v=parcours1';
+import {cellOf, cryoVapor, inShelter, levels, monsterOpen, passageAt, point, tile} from './station.js?v=cryo1';
 
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
 const key=(x,z)=>z*16+x;
@@ -84,7 +84,9 @@ export function createHunt({visible,lifts,patrolPoints}){
       for(const [i,m] of monsters.entries()){
         if(m.level!==player.level)continue;
         const p=m.root.position,range=distance(player,p);
-        const vision=range<[10,13,8][i]+(player.light?5:0)&&visible(player,p,m.level);
+        const vapor=Math.max(cryoVapor(player.x,player.z,m.level),cryoVapor(p.x,p.z,m.level));
+        const sightRange=[10,13,8][i]*(1-.78*vapor)+(player.light?5:0);
+        const vision=range<sightRange&&visible(player,p,m.level);
         const hearing=player.run&&range<[11,8,18][i]&&
           (distances(grids[m.level],idAt(p,m.level)).get(idAt(player,m.level))??Infinity)<(i===2?9:5);
         if(vision||hearing)nearest=Math.min(nearest,range);

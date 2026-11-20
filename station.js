@@ -55,6 +55,11 @@ export function where(symbol,y=0,level=0) {
   return point(rows[row].indexOf(symbol),row,y,level);
 }
 export function cellOf(x,z,level=0) {return [Math.round(x/tile+center(level)),Math.round(z/tile+center(level))];}
+export function cryoVapor(x,z,level){
+  if(level!==1)return 0;
+  const distance=Math.hypot(x+2.8,z);
+  return T.MathUtils.clamp((8.7-distance)/4.7,0,1);
+}
 export function inShelter(x,z,level){
   if(level!==0)return false;
   const [column,row]=cellOf(x,z,level);
@@ -353,6 +358,18 @@ function buildSectorLandmark(scene,level,color){
   }
   signAt(panel,['CONTRÔLE DES SAS','BANQUE CRYOGÉNIQUE','CULTURES · BIOCONFINEMENT'][level],color,0,2.69,.07).scale.setScalar(1.31);
 }
+function buildCryoLeak(scene){
+  const point=where('E',0,1);
+  const steel=paint('#587685',.48),rubber=paint('#232c33',.15);
+  const ice=new T.MeshBasicMaterial({color:'#abebfa'});
+  piece(scene,barrel,steel,point.x+.5,2.74,point.z, .11,3.2,.11).rotation.z=Math.PI/2;
+  for(let i=0;i<3;i++){
+    const x=point.x- .45+i*.8;
+    piece(scene,barrel,rubber,x,2.74,point.z,.15,.09,.15).rotation.z=Math.PI/2;
+    piece(scene,box,ice,x,2.64,point.z,.26,.013,.034);
+  }
+  signAt(scene,'FUITE CRYOGÉNIQUE','#b5f0ff',point.x,2.31,point.z+.55,Math.PI).scale.setScalar(.95);
+}
 function buildPassage(scene,x,z,kind,furniture){
   const vault=kind==='V',low=vault?2.92:1.18;
   const shell=paint(vault?'#536774':'#506360',.34),lining=paint('#273638',.28);
@@ -451,6 +468,7 @@ export function buildStation(scene,level){
   }
   const cargo=level===0?buildShelter(scene,lighting,furniture):null;
   buildSectorLandmark(scene,level,ledColor);
+  if(level===1)buildCryoLeak(scene);
   const lift=where('L',0,level);
   piece(scene,box,paint('#725e3a'),lift.x,.026,lift.z,2.4,.05,2.4);
   const liftSign=placard('ASCENSEUR · '+levelNames[level].toUpperCase());

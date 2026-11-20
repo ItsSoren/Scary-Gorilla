@@ -1,9 +1,9 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js?v=parcours1';
-import {buildStation, cellOf, fits, inShelter, itemModel, levelNames, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=parcours1';
-import {behavior, createHunt, huntingSpeed} from './hunt.js?v=parcours1';
+import {createRooms} from './rooms.js?v=cryo1';
+import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=cryo1';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=cryo1';
 import {createCreatureAudio} from './creature-audio.js';
 
 const el=id=>document.getElementById(id);
@@ -11,6 +11,8 @@ const canvas=el('game'),menu=el('menu'),hud=el('hud');
 const scene=new T.Scene();
 scene.background=new T.Color('#10191a');
 scene.fog=new T.FogExp2('#10191a',.068);
+const clearFog=new T.Color('#10191a'),coldFog=new T.Color('#537784');
+let ventAt=0;
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.xr.enabled=true;
@@ -718,6 +720,14 @@ function drawFrame(time){
     if(distance<firstDistance){
       second=first;secondDistance=firstDistance;first=position;firstDistance=distance;
     }else if(distance<secondDistance){second=position;secondDistance=distance;}
+  }
+  const vapor=cryoVapor(eye.x,eye.z,session.level);
+  scene.fog.color.copy(clearFog).lerp(coldFog,vapor*.76);
+  scene.fog.density=.068+vapor*(.17+.021*Math.sin(frameTime*.72));
+  scene.background.copy(scene.fog.color);
+  if(session.play&&vapor>.25&&frameTime>ventAt){
+    scrape(930,.69,vapor*.26,.2);
+    ventAt=frameTime+2.35;
   }
   const safeLight=inShelter(eye.x,eye.z,session.level);
   corridorLights.forEach((light,i)=>{
