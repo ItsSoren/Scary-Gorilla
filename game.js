@@ -169,7 +169,7 @@ function audioStart(){
     if(!audio){
       audio=new AudioContext();master=audio.createGain();master.connect(audio.destination);
       const hum=audio.createOscillator(),volume=audio.createGain();
-      hum.type='sine';hum.frequency.value=49;volume.gain.value=.075;
+      hum.type='triangle';hum.frequency.value=112;volume.gain.value=.13;
       hum.connect(volume).connect(master);hum.start();
       noise=audio.createBuffer(1,Math.floor(audio.sampleRate*.8),audio.sampleRate);
       const stream=noise.getChannelData(0);
@@ -181,22 +181,25 @@ function audioStart(){
 }
 function tone(frequency,end,seconds,gain,type='sine',pan=0){
   if(!audio||audio.state!=='running')return;
-  const now=audio.currentTime,osc=audio.createOscillator(),envelope=audio.createGain(),panner=audio.createStereoPanner();
+  const now=audio.currentTime,osc=audio.createOscillator(),envelope=audio.createGain(),panner=audio.createStereoPanner?.();
   osc.type=type;osc.frequency.setValueAtTime(frequency,now);osc.frequency.exponentialRampToValueAtTime(end,now+seconds);
   envelope.gain.setValueAtTime(.0001,now);envelope.gain.exponentialRampToValueAtTime(gain,now+.016);
   envelope.gain.exponentialRampToValueAtTime(.0001,now+seconds);
-  panner.pan.value=pan;
-  osc.connect(envelope).connect(panner).connect(master);
+  osc.connect(envelope);
+  if(panner){panner.pan.value=pan;envelope.connect(panner).connect(master);}
+  else envelope.connect(master);
   osc.start(now);osc.stop(now+seconds+.02);
 }
 function scrape(frequency,seconds,gain,pan){
   if(!noise||audio.state!=='running')return;
   const now=audio.currentTime,source=audio.createBufferSource(),filter=audio.createBiquadFilter();
-  const envelope=audio.createGain(),panner=audio.createStereoPanner();
+  const envelope=audio.createGain(),panner=audio.createStereoPanner?.();
   source.buffer=noise;filter.type='bandpass';filter.frequency.value=frequency;filter.Q.value=2.2;
   envelope.gain.setValueAtTime(.001,now);envelope.gain.exponentialRampToValueAtTime(gain,now+.032);
-  envelope.gain.exponentialRampToValueAtTime(.001,now+seconds);panner.pan.value=pan;
-  source.connect(filter).connect(envelope).connect(panner).connect(master);
+  envelope.gain.exponentialRampToValueAtTime(.001,now+seconds);
+  source.connect(filter).connect(envelope);
+  if(panner){panner.pan.value=pan;envelope.connect(panner).connect(master);}
+  else envelope.connect(master);
   source.start(now);source.stop(now+seconds);
 }
 function release(hand){
@@ -292,6 +295,7 @@ function start(){
   session.play=true;session.room=el('room').value;resetGame();
   menu.hidden=true;hud.hidden=false;
   audioStart();rooms.join(session.room);serverText='';
+  audio?.resume().then(()=>{tone(640,390,.24,.45,'triangle');scrape(480,.5,.23,0);}).catch(()=>{});
 }
 function stop(){
   if(!session.play)return;
@@ -305,11 +309,24 @@ function stop(){
 el('back').onclick=stop;
 el('start').onclick=start;
 el('volume').oninput=()=>{if(master)master.gain.value=Number(el('volume').value)*.0034;};
+el('audio-test').onclick=()=>{
+  audioStart();
+  if(!audio){el('status').textContent='Audio indisponible dans ce navigateur.';return;}
+  audio.resume().then(()=>{
+    if(Number(el('volume').value)===0){el('status').textContent='Volume à zéro.';return;}
+    tone(550,320,.38,.52,'triangle');scrape(650,.45,.24,0);
+    el('status').textContent='Signal audio joué.';
+  }).catch(()=>{el('status').textContent='Le navigateur a bloqué le démarrage du son.';});
+};
 el('vr').onclick=async()=>{
   el('vr').disabled=true;
   try{
+    if(!window.isSecureContext||!navigator.xr){
+      throw new Error('ouvre la page HTTPS directement dans le navigateur du Quest');
+    }
+    const request=navigator.xr.requestSession('immersive-vr',{requiredFeatures:['local-floor']});
     audioStart();
-    const xr=await navigator.xr.requestSession('immersive-vr');
+    const xr=await request;
     try{await renderer.xr.setSession(xr);}
     catch(error){await xr.end().catch(()=>{});throw error;}
     document.body.classList.add('immersive');start();
@@ -326,9 +343,9 @@ renderer.xr.addEventListener('sessionend',()=>{
 el('start').disabled=false;
 el('status').textContent='Mode écran disponible. Vérification du casque…';
 Promise.resolve(navigator.xr?.isSessionSupported('immersive-vr')).then(supported=>{
-  el('vr').disabled=!supported;
+  el('vr').disabled=false;
   if(!session.play)el('status').textContent=supported?'Casque WebXR détecté.':'VR disponible depuis un navigateur de casque compatible, en HTTPS.';
-}).catch(()=>{if(!session.play)el('status').textContent='Mode écran disponible.';});
+}).catch(()=>{el('vr').disabled=false;if(!session.play)el('status').textContent='Mode écran disponible.';});
 
 function updateBody(dt){
   const vr=renderer.xr.isPresenting;
@@ -387,7 +404,7 @@ function updateBody(dt){
   }
   rig.updateMatrixWorld(true);universeView();
   if((rig.position.distanceToSquared(groundRig)>dt*dt*.9)&&frameTime-lastAudioStep>(session.run?.28:.47)){
-    lastAudioStep=frameTime;tone(83,37,.15,session.run?.20:.10,'triangle');
+    lastAudioStep=frameTime;tone(135,54,.19,session.run?.32:.22,'triangle');scrape(640,.15,.18,0);
   }
 }
 function visibleBetween(from,to,level=session.level){
@@ -605,7 +622,8 @@ renderer.setAnimationLoop(time=>{
   }
   corridorLights.forEach((light,i)=>{
     light.position.copy(i===0?first:second);
-    light.intensity=(session.scare?.intense?25:18)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
+    light.color.set(station().ledColor);
+    light.intensity=(session.scare?.intense?45:34)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
   });
   renderer.render(scene,view);
 });

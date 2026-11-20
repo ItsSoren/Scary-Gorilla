@@ -191,6 +191,32 @@ export function placard(text,color='#ffb979'){
   texture.colorSpace=T.SRGBColorSpace;
   return new T.Mesh(new T.PlaneGeometry(1.7,.425),new T.MeshBasicMaterial({map:texture,side:T.DoubleSide}));
 }
+const surfaceMaps=new Map();
+function surfaceMap(kind){
+  if(surfaceMaps.has(kind))return surfaceMaps.get(kind);
+  const size=128,data=new Uint8Array(size*size*4);
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const n=(Math.imul(x+19,73856093)^Math.imul(y+11,19349663))>>>0;
+    let value=194+n%52+14*Math.sin(x/9)*Math.cos(y/13);
+    if(kind==='floor'){
+      const edge=Math.min(x%64,y%64);
+      if(edge<2)value=58;
+      else if(edge<4)value=144;
+      else if((x%16+y%16)%16<2&&((x>>3)^(y>>3))%2)value-=29;
+    }else{
+      if(x<3||y<4||y>124)value*=.55;
+      if((x===9||x===118)&&(y===9||y===118))value=45;
+      if(kind==='wall'&&y>80)value*=.8;
+      if(n%199<4)value*=.63;
+    }
+    const offset=(y*size+x)*4;
+    data.set([value,value,value,255],offset);
+  }
+  const map=new T.DataTexture(data,size,size);
+  map.colorSpace=T.SRGBColorSpace;
+  map.generateMipmaps=true;map.minFilter=T.LinearMipmapLinearFilter;map.magFilter=T.LinearFilter;
+  map.anisotropy=4;map.needsUpdate=true;surfaceMaps.set(kind,map);return map;
+}
 export function buildStation(scene,level){
   const size=levels[level].length;
   const solids=[],groups={floor:[],wall:[],ceiling:[],trim:[],rail:[],light:[]};
@@ -213,14 +239,22 @@ export function buildStation(scene,level){
     }
     batch('floor',x,-.045,z,tile-.025,.09,tile-.025);
     batch('ceiling',x,3.23,z,tile,.09,tile);
-    if((row+col*3)%4!==0)continue;
+    for(const [dx,dz] of neighbors){
+      if(open(col+dx,row+dz,level))continue;
+      const edgeX=x+dx*(tile/2-.035),edgeZ=z+dz*(tile/2-.035);
+      batch('rail',edgeX,2.54,edgeZ,dx?.085:tile-.13,.18,dz?.085:tile-.13);
+      batch('light',edgeX-dx*.05,2.54,edgeZ-dz*.05,dx?.032:tile-.22,.061,dz?.032:tile-.22);
+    }
+    if((row+col*3)%3!==0)continue;
     batch('rail',x,3.11,z,.22,.11,2.55);
     batch('light',x,3.041,z,.12,.025,2.05);
     lighting.push(new T.Vector3(x,2.94,z));
   }
-  const palette={floor:'#4a5250',wall:['#3e514e','#344d61','#514e35'][level],ceiling:'#202a2d',trim:['#657b71','#668b96','#8a794a'][level],rail:'#442b26',light:['#b57957','#82b4c5','#b6ad5c'][level]};
+  const ledColor=['#ff6334','#39ddff','#81ffa0'][level];
+  const palette={floor:'#808d88',wall:['#a4b2ae','#8299ab','#8da597'][level],ceiling:'#627279',trim:'#405053',rail:'#202831',light:ledColor};
   for(const [key,instances] of Object.entries(groups)){
     const material=key==='light'?new T.MeshBasicMaterial({color:palette[key]}):paint(palette[key]);
+    if(['floor','wall','ceiling'].includes(key))material.map=surfaceMap(key);
     const mesh=new T.InstancedMesh(box,material,instances.length);
     instances.forEach(([x,y,z,sx,sy,sz],i)=>{
       dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
@@ -246,5 +280,5 @@ export function buildStation(scene,level){
   const liftSign=placard('ASCENSEUR · '+levelNames[level].toUpperCase());
   liftSign.position.copy(lift).add(new T.Vector3(0,2.26,-1.55));
   scene.add(liftSign);
-  return {solids,lighting,exit,lift,scene};
+  return {solids,lighting,ledColor,exit,lift,scene};
 }
