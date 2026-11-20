@@ -60,6 +60,9 @@ export function cryoVapor(x,z,level){
   const distance=Math.hypot(x+2.8,z);
   return T.MathUtils.clamp((8.7-distance)/4.7,0,1);
 }
+export function metalGrating(col,row,level){
+  return level===2&&((col>=2&&col<=5&&row>=5&&row<=8)||(col>=7&&row===3));
+}
 export function inShelter(x,z,level){
   if(level!==0)return false;
   const [column,row]=cellOf(x,z,level);
@@ -419,6 +422,10 @@ export function buildStation(scene,level){
       continue;
     }
     batch('floor',x,-.045,z,tile-.025,.09,tile-.025);
+    if(metalGrating(col,row,level)){
+      batch('service',x,.006,z,3.28,.012,3.28);
+      for(let i=-5;i<=5;i++)batch('vent',x+i*.28,.017,z,.15,.012,3.13);
+    }
     batch('ceiling',x,3.23,z,tile,.09,tile);
     const marker=levels[level][row][col];
     if(marker==='V'||marker==='T'){
@@ -468,6 +475,10 @@ export function buildStation(scene,level){
   }
   const cargo=level===0?buildShelter(scene,lighting,furniture):null;
   buildSectorLandmark(scene,level,ledColor);
+  if(level===2){
+    const entry=where('L',0,2);
+    signAt(scene,'CAILLEBOTIS · MARCHE LENTEMENT','#ccf3af',entry.x,1.72,entry.z-1.65).scale.setScalar(1.38);
+  }
   if(level===1)buildCryoLeak(scene);
   const lift=where('L',0,level);
   piece(scene,box,paint('#725e3a'),lift.x,.026,lift.z,2.4,.05,2.4);

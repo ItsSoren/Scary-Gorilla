@@ -1,9 +1,9 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js?v=cryo1';
-import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=cryo1';
-import {behavior, createHunt, huntingSpeed} from './hunt.js?v=cryo1';
+import {createRooms} from './rooms.js?v=incubation1';
+import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=incubation1';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=incubation1';
 import {createCreatureAudio} from './creature-audio.js';
 
 const el=id=>document.getElementById(id);
@@ -470,8 +470,12 @@ function updateBody(dt){
     key.pressed.clear();
   }
   rig.updateMatrixWorld(true);universeView();
+  const grating=metalGrating(...cellOf(eye.x,eye.z,session.level),session.level);
+  if(grating&&Math.hypot(bodyDelta.x,bodyDelta.z)/dt>2.15)session.run=true;
   if((rig.position.distanceToSquared(groundRig)>dt*dt*.9)&&frameTime-lastAudioStep>(session.run?.28:.47)){
-    lastAudioStep=frameTime;tone(135,54,.19,session.run?.32:.22,'triangle');scrape(640,.15,.18,0);
+    lastAudioStep=frameTime;
+    tone(grating?560:135,grating?220:54,grating?.27:.19,session.run?.32:.22,'triangle');
+    scrape(grating?1700:640,.15,session.run?.22:.12,0);
   }
 }
 function visibleBetween(from,to,level=session.level){
