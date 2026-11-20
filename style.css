@@ -1,0 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{color-scheme:dark;font:14px 'IBM Plex Mono',monospace;color:#e5e8de;background:#10171a}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh}canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+main{position:relative;margin:clamp(16px,6vh,72px) 0 16px clamp(12px,6vw,96px);max-width:min(490px,calc(100% - 24px));padding:clamp(20px,4vw,42px);background:linear-gradient(140deg,#142023fa,#101819e8);border:1px solid #50625e;border-top:4px solid #f0a358;box-shadow:0 30px 90px #000a}
+.location{color:#efaa72;font-size:.78rem;letter-spacing:.14em;margin:0}h1{font-family:'Barlow Condensed',Impact,sans-serif;font-size:clamp(65px,11vw,132px);line-height:.77;letter-spacing:-.035em;margin:.2em 0 .25em;color:#edf0e4}.intro{line-height:1.65;max-width:36ch}
+.options{display:grid;grid-template-columns:1fr 1.3fr;gap:.55rem;align-items:center;padding:.9rem 0;border-top:1px solid #53605d;border-bottom:1px solid #53605d;margin:1.2rem 0}
+button,select{font:inherit;color:inherit;background:#202d30;border:1px solid #586863;padding:.6rem .7rem;min-width:0}button{cursor:pointer}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #ffd3a4;outline-offset:3px}
+button:disabled{cursor:default;opacity:.5}.actions{display:flex;gap:.6rem;flex-wrap:wrap}#start{background:#f0a358;color:#181a17;font-weight:600}#status,details{font-size:.83rem;color:#b9c9c4;line-height:1.5}summary{cursor:pointer}input{accent-color:#f0a358;width:100%}
+#hud{position:fixed;inset:0;pointer-events:none;padding:16px}#hud button{pointer-events:auto}#counter,#connection,#hint{background:#101819e8;padding:.6rem;color:#fff1dc}#counter,#connection{display:inline-block}#connection:empty,#hint:empty{display:none}
+#hint{position:absolute;bottom:10%;left:50%;transform:translateX(-50%);text-align:center;width:max-content;max-width:75%}#reticle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#e5e8de91}nav{display:none;position:absolute;right:12px;bottom:12px}[hidden],.immersive #hud{display:none!important}
+@media(any-pointer:coarse){nav{display:flex;gap:.35rem}}
+@media(max-height:700px){main{margin-top:12px;padding:18px}h1{font-size:clamp(58px,11vw,86px)}}
