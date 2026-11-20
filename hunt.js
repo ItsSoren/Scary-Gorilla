@@ -1,4 +1,4 @@
-import {cellOf, inShelter, levels, open, point, tile} from './station.js?v=refuge1';
+import {cellOf, inShelter, levels, open, point, tile} from './station.js?v=refuge2';
 
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
 const key=(x,z)=>z*16+x;

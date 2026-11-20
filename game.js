@@ -2,8 +2,8 @@ import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=refuge1';
-import {buildStation, fits, inShelter, itemModel, levelNames, nextStep, placard, predator, where, woundModel} from './station.js?v=refuge1';
-import {behavior, createHunt, huntingSpeed} from './hunt.js?v=refuge1';
+import {buildStation, fits, inShelter, itemModel, levelNames, nextStep, placard, predator, where, woundModel} from './station.js?v=refuge2';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=refuge2';
 import {createCreatureAudio} from './creature-audio.js';
 
 const el=id=>document.getElementById(id);

@@ -179,15 +179,28 @@ export function woundModel(model,type){
   });
 }
 const paint=(color,metalness=.1)=>new T.MeshStandardMaterial({color,metalness,roughness:.82});
+const barrel=new T.CylinderGeometry(1,1,1,16);
+const itemShell=paint('#303d3e',.27),itemGrip=paint('#1b2326',.1),itemSteel=paint('#77868b',.55);
 export function itemModel(kind){
   const root=new T.Group();
   if(kind==='lamp'){
-    piece(root,limbs,paint('#9b7045',.5),0,0,0,.095,.42,.095).rotation.x=Math.PI/2;
-    piece(root,limbs,paint('#dcded4'),0,0,-.18,.14,.16,.14).rotation.x=Math.PI/2;
-    piece(root,sphere,new T.MeshBasicMaterial({color:'#fff3c3'}),0,0,-.277,.10,.10,.022);
+    piece(root,barrel,itemShell,0,0,.03,.083,.43,.083).rotation.x=Math.PI/2;
+    for(let i=0;i<7;i++)piece(root,barrel,itemGrip,0,0,.06+i*.021,.088,.011,.088).rotation.x=Math.PI/2;
+    piece(root,limbs,itemSteel,0,0,-.16,.137,.18,.137).rotation.x=-Math.PI/2;
+    piece(root,barrel,itemGrip,0,0,-.245,.121,.055,.121).rotation.x=Math.PI/2;
+    piece(root,barrel,paint('#b1cbd0',.5),0,0,-.275,.099,.012,.099).rotation.x=Math.PI/2;
+    piece(root,box,itemGrip,0,.085,.026,.049,.026,.085);
+    piece(root,box,eyeMats[1],0,.099,.039,.024,.006,.019);
   }else if(kind==='decoy'){
-    piece(root,box,paint('#6f5541'),0,0,0,.32,.20,.27);
-    piece(root,sphere,eyeMats[0],0,.12,0,.07,.045,.07);
+    piece(root,box,itemShell,0,-.01,0,.34,.19,.27);
+    piece(root,box,itemGrip,0,.095,0,.318,.03,.252);
+    for(const x of [-.145,.145]){
+      piece(root,box,itemSteel,x,-.012,0,.03,.205,.268);
+      for(const z of [-.107,.107])piece(root,box,itemGrip,x,.108,z,.024,.011,.023);
+    }
+    for(let i=0;i<6;i++)piece(root,box,itemGrip,.084-i*.027,-.012,.142,.011,.11,.02);
+    piece(root,barrel,itemSteel,0,.115,.047,.061,.019,.061);
+    piece(root,barrel,eyeMats[0],0,.131,.047,.038,.012,.038);
   }else if(kind==='sample'){
     piece(root,limbs,paint('#3c514a',.38),0,0,0,.137,.38,.137);
     piece(root,limbs,new T.MeshBasicMaterial({color:'#b8ef65'}),0,.043,0,.099,.245,.099);
@@ -286,7 +299,7 @@ function buildShelter(scene,lighting,furniture){
   piece(scene,box,shell,cargo.x,1.07,cargo.z,1.56,.08,1.12);
   furniture(cargo.x,.55,cargo.z,1.56,1.1,1.12);
   piece(scene,box,glow,cargo.x,1.12,cargo.z,.86,.023,.56);
-  signAt(scene,'DÉPÔT D’ÉCHANTILLONS','#b3ffbb',cargo.x,1.7,cargo.z+.55);
+  signAt(scene,'DÉPÔT D’ÉCHANTILLONS','#b3ffbb',cargo.x,1.7,cargo.z+.55,Math.PI);
   const board=signAt(scene,'REFUGE 01 · STATION ÉCHO','#b3ffbb',start.x,2.2,start.z-1.62);
   board.scale.setScalar(2.35);
   for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  RÉCUPÈRE 3 CARTOUCHES','03  REJOINS LE SAS 04'].entries()){
