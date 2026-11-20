@@ -1,0 +1,30 @@
+# Scary Gorilla
+
+Station Écho est un jeu d’horreur WebXR pour casque, PC et mobile, basé sur la locomotion et les commandes de [Gorilla Lab](https://github.com/ItsSoren/VR).
+
+Récupère les cartouches de la Réception, de la Cryogénie et de l’Incubation, puis active le sas 04 au premier niveau. Le labo couvre **2 707,25 m²** de cases praticables, murs exclus. Utilise la lampe pour explorer et la balise acoustique pour détourner une patrouille.
+
+Les créatures retiennent la dernière position entendue ou aperçue. Elles se transmettent la piste, se répartissent les angles et empruntent l’ascenseur pour rejoindre une chasse. En mode intense, leur attaque déclenche un gros plan sanglant et un cri de proximité. Le mode atténué réduit le son et retire le sang.
+
+## Jouer
+
+- PC · ZQSD ou WASD, glisser pour regarder, Maj pour courir, E pour saisir ou lâcher et F pour utiliser.
+- Casque · Ouvre le jeu en HTTPS dans le navigateur du casque. Pousse sur les surfaces avec les mains ou utilise le stick gauche. Grip pour saisir, gâchette pour utiliser, stick droit pour tourner par crans.
+- Ascenseur · Sur la plateforme, E ou grip pour monter, F ou gâchette pour descendre.
+- Multijoueur · Sélectionne le même salon que tes amis avant de lancer. Les cartouches, les poses des joueurs et les monstres sont partagés. Chaque joueur manipule sa propre lampe et sa propre balise.
+
+## Lancer et héberger
+
+```sh
+python -m http.server 8416
+```
+
+Ouvre `http://localhost:8416/` sur PC. Three.js est fourni dans `vendor/`. Le solo fonctionne sans téléchargement externe une fois les fichiers servis, avec des polices système si Google Fonts est inaccessible.
+
+Pour GitHub Pages, publie le contenu de ce dossier à la racine de `main`, puis sélectionne **Settings → Pages → Deploy from a branch → main → /(root)**.
+
+Les trois salons utilisent les variables TurboWarp `☁ ScaryPlayer0` à `☁ ScaryPlayer9`, sur trois identifiants de projet distincts. Le relais est nécessaire aux parties en ligne.
+
+## Sources
+
+La locomotion de Gorilla Lab s’appuie sur GorillaLocomotion d’Another-Axiom. Les licences de GorillaLocomotion et de Three.js sont dans `vendor/`. Les créatures, les plans du labo et les sons synthétisés ont été créés pour Scary Gorilla.
