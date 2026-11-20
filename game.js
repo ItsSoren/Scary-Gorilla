@@ -1,9 +1,9 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js?v=refuge1';
-import {buildStation, fits, inShelter, itemModel, levelNames, nextStep, placard, predator, where, woundModel} from './station.js?v=refuge2';
-import {behavior, createHunt, huntingSpeed} from './hunt.js?v=refuge2';
+import {createRooms} from './rooms.js?v=parcours1';
+import {buildStation, cellOf, fits, inShelter, itemModel, levelNames, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=parcours1';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=parcours1';
 import {createCreatureAudio} from './creature-audio.js';
 
 const el=id=>document.getElementById(id);
@@ -70,6 +70,7 @@ const wrist=new T.Group();
 const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
 let audio,master,noise,creatureAudio;
+let grounded=true,touchCrouch=false;
 const hands=[0,1].map(index=>{
   const input=renderer.xr.getController(index),grip=renderer.xr.getControllerGrip(index);
   const mesh=new T.Mesh(new T.IcosahedronGeometry(.09,1),new T.MeshStandardMaterial({color:index?'#b47142':'#799178'}));
@@ -141,13 +142,25 @@ function moveRig(dx,dy,dz){
   const offsetX=eye.x-rig.position.x,offsetZ=eye.z-rig.position.z;
   previous.copy(rig.position);
   const area=station();
-  const clear=(x,z)=>fits(x,z,.25,session.level)&&!area.fixtures.some(({min,max})=>
-    eye.y<max.y+1&&x>min.x-.25&&x<max.x+.25&&z>min.z-.25&&z<max.z+.25);
-  if(clear(rig.position.x+offsetX+dx,rig.position.z+offsetZ))rig.position.x+=dx;
-  if(clear(rig.position.x+offsetX,rig.position.z+offsetZ+dz))rig.position.z+=dz;
-  rig.position.y=T.MathUtils.clamp(rig.position.y+dy,0,1);
-  if(rig.position.y===0&&velocity.y<0)velocity.y=0;
+  const height=T.MathUtils.clamp(eye.y-previous.y,.48,2.25);
+  const clear=(x,z)=>fits(x,z,.24,session.level)&&!area.fixtures.some(box=>
+    overlapsBody(box,x,z)&&previous.y<box.max.y-.015&&previous.y+height+.075>box.min.y);
+  if(clear(previous.x+offsetX+dx,previous.z+offsetZ))rig.position.x+=dx;
+  if(clear(rig.position.x+offsetX,previous.z+offsetZ+dz))rig.position.z+=dz;
+  const x=rig.position.x+offsetX,z=rig.position.z+offsetZ;
+  let floor=0,ceiling=3.17-height-.075;
+  for(const box of area.fixtures){
+    if(!overlapsBody(box,x,z))continue;
+    if(previous.y>=box.max.y-.018)floor=Math.max(floor,box.max.y);
+    if(previous.y+height<=box.min.y+.015)ceiling=Math.min(ceiling,box.min.y-height-.075);
+  }
+  rig.position.y=T.MathUtils.clamp(previous.y+dy,floor,Math.max(floor,ceiling));
+  grounded=rig.position.y<=floor+.008;
+  if((grounded&&velocity.y<0)||(rig.position.y>=ceiling-.008&&velocity.y>0))velocity.y=0;
   bodyDelta.subVectors(rig.position,previous);
+}
+function overlapsBody({min,max},x,z){
+  return x>min.x-.24&&x<max.x+.24&&z>min.z-.24&&z<max.z+.24;
 }
 function resetBody(useLift=false){
   rig.position.copy(useLift?station().lift:where('S'));rig.rotation.set(0,0,0);
@@ -155,7 +168,7 @@ function resetBody(useLift=false){
   view.position.set(0,1.62,0);
   yaw=useLift?-Math.PI/2:Math.PI;pitch=0;
   view.rotation.set(pitch,yaw,0,'YXZ');
-  velocity.set(0,0,0);locomotion.reset();
+  velocity.set(0,0,0);grounded=true;touchCrouch=false;locomotion.reset();
 }
 function selectLevel(level){
   session.level=level;
@@ -289,7 +302,11 @@ function use(hand){
 const controls=createFlatControls({
   canvas,enabled:()=>session.play&&!renderer.xr.isPresenting,
   onLook(dx,dy,sensitivity){yaw-=dx*sensitivity;pitch=T.MathUtils.clamp(pitch-dy*sensitivity,-1.38,1.38);},
-  onAction(action){if(action==='interact')grab(flatHand);else if(action==='use')use(flatHand);},
+  onAction(action){
+    if(action==='interact')grab(flatHand);
+    else if(action==='use')use(flatHand);
+    else if(action==='crouch')touchCrouch=!touchCrouch;
+  },
 });
 addEventListener('keydown',event=>{
   if(!session.play||renderer.xr.isPresenting)return;
@@ -422,23 +439,29 @@ function updateBody(dt){
     const axes=left?.source?.gamepad?.axes;
     const horizontal=Math.abs(axes?.[2]??0)>.18?axes[2]:0;
     const forward=Math.abs(axes?.[3]??0)>.18?axes[3]:0;
-    locomotion.move({head:eye,dt,gravity:13,settings:{grip:4,slide:3,jump:3,weight:4},boxes:station().solids,velocity,movement,reach:1.25});
+    locomotion.move({head:eye,dt,gravity:13,settings:{grip:5,slide:3,jump:5,weight:4},boxes:station().solids,velocity,movement,reach:1.25});
     ray.set(sight.x,0,sight.z).normalize();
     movement.x+=(ray.x*-forward-ray.z*horizontal)*dt*2.5;
     movement.z+=(ray.z*-forward+ray.x*horizontal)*dt*2.5;
     moveRig(movement.x,movement.y,movement.z);
     locomotion.finish(bodyDelta,velocity);
-    session.run=bodyDelta.length()/dt>2.85;
+    session.run=Math.hypot(bodyDelta.x,bodyDelta.z)/dt>2.85;
   }else{
     view.rotation.set(pitch,yaw,0,'YXZ');
-    view.position.set(0,1.62,0);
-    universeView();
     const held=(...codes)=>codes.some(code=>key.held.has(code));
+    if(key.pressed.delete('KeyC'))touchCrouch=!touchCrouch;
+    const crouch=touchCrouch||
+      station().fixtures.some(box=>overlapsBody(box,rig.position.x,rig.position.z)&&box.min.y>rig.position.y+.58&&box.min.y<rig.position.y+1.71);
+    view.position.set(0,T.MathUtils.lerp(view.position.y,crouch?.96:1.62,1-Math.exp(-dt*22)),0);
+    universeView();
     const x=Number(held('KeyD','ArrowRight'))-Number(held('KeyA','KeyQ','ArrowLeft'))+controls.movement.x;
     const z=Number(held('KeyS','ArrowDown'))-Number(held('KeyW','KeyZ','ArrowUp'))+controls.movement.z;
-    const speed=held('ShiftLeft','ShiftRight')?4.6:2.55;
+    const speed=crouch?1.65:held('ShiftLeft','ShiftRight')?4.6:2.55;
     const step=dt*speed/Math.max(1,Math.hypot(x,z));
-    moveRig((Math.cos(yaw)*x+Math.sin(yaw)*z)*step,0,(-Math.sin(yaw)*x+Math.cos(yaw)*z)*step);
+    const wantsJump=key.pressed.delete('Space')||controls.consumeJump();
+    if(wantsJump&&grounded&&!crouch)velocity.y=5.65;
+    if(!grounded||velocity.y>0)velocity.y-=13*dt;
+    moveRig((Math.cos(yaw)*x+Math.sin(yaw)*z)*step,velocity.y*dt,(-Math.sin(yaw)*x+Math.cos(yaw)*z)*step);
     session.run=speed>3&&bodyDelta.lengthSq()>.00001;
     if(key.pressed.delete('KeyE'))grab(flatHand);
     if(key.pressed.delete('KeyF'))use(flatHand);
@@ -453,7 +476,10 @@ function visibleBetween(from,to,level=session.level){
   const length=Math.hypot(to.x-from.x,to.z-from.z);
   const count=Math.max(1,Math.ceil(length/.4));
   for(let i=1;i<count;i++){
-    if(!fits(T.MathUtils.lerp(from.x,to.x,i/count),T.MathUtils.lerp(from.z,to.z,i/count),.015,level))return false;
+    const t=i/count,x=T.MathUtils.lerp(from.x,to.x,t),z=T.MathUtils.lerp(from.z,to.z,t);
+    if(!fits(x,z,.015,level))return false;
+    const y=T.MathUtils.lerp(from.y||1.42,to.y||1.42,t);
+    if(stations[level].fixtures.some(({min,max})=>x>min.x&&x<max.x&&z>min.z&&z<max.z&&y>min.y&&y<max.y))return false;
   }
   return true;
 }
@@ -507,7 +533,7 @@ function scareTick(){
   return false;
 }
 function patrol(dt,peers,host){
-  const local={id:rooms.id,x:eye.x,z:eye.z,yaw:Math.atan2(sight.x,sight.z),
+  const local={id:rooms.id,x:eye.x,y:eye.y,z:eye.z,yaw:Math.atan2(sight.x,sight.z),
     run:session.run,light:session.light,level:session.level,
     protected:frameTime<session.immunity||session.won||!!session.scare||inShelter(eye.x,eye.z,session.level)};
   if(host)hunt.plan(frameTime,monsters,[local,...peers],lure);
@@ -522,7 +548,7 @@ function patrol(dt,peers,host){
     const striking=charging&&!winding;
     if(host&&frameTime>=m.nextThink){
       m.nextThink=frameTime+.17+(i*.018);
-      m.target.copy(nextStep(pos,m.goal,m.level));
+      m.target.copy(nextStep(pos,m.goal,m.level,true));
     }
     if(host){
       const dx=m.target.x-pos.x,dz=m.target.z-pos.z,dist=Math.hypot(dx,dz);
@@ -530,8 +556,9 @@ function patrol(dt,peers,host){
         const burst=striking&&frameTime-m.attackAt<[.86,.42,.25][i];
         const speed=winding?.64:burst?[6.1,5.45,5.6][i]:huntingSpeed[m.mode]*[.91,.94,1.06][i];
         const step=Math.min(dist,speed*dt)/dist;
-        if(fits(pos.x+dx*step,pos.z,.34,m.level)&&!inShelter(pos.x+dx*step,pos.z,m.level))pos.x+=dx*step;
-        if(fits(pos.x,pos.z+dz*step,.34,m.level)&&!inShelter(pos.x,pos.z+dz*step,m.level))pos.z+=dz*step;
+        const clear=(x,z)=>fits(x,z,.34,m.level)&&monsterOpen(...cellOf(x,z,m.level),m.level)&&!inShelter(x,z,m.level);
+        if(clear(pos.x+dx*step,pos.z))pos.x+=dx*step;
+        if(clear(pos.x,pos.z+dz*step))pos.z+=dz*step;
         m.root.rotation.y=Math.atan2(dx,dz);
       }
     }
@@ -570,7 +597,7 @@ function patrol(dt,peers,host){
       m.voiceAt=frameTime+(charging?[1.9,2.6,1.54][i]:hiding?[4.1,3.1,2.7][i]:[5.5,6.5,4.5][i]);
       creatureAudio?.play(i,charging,gain*(charging?.95:hiding?.56:.47),pan,!visible);
     }
-    if(striking&&!local.protected&&distance<[1.45,1.15,1.29][i]&&visible)makeScare(i);
+    if(striking&&!local.protected&&!passageAt(eye.x,eye.z,session.level)&&distance<[1.45,1.15,1.29][i]&&visible)makeScare(i);
   }
 }
 function updateHeld(){

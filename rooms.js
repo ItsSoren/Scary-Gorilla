@@ -1,5 +1,5 @@
 const relay='wss://clouddata.turbowarp.org';
-const project='itssoren.github.io/Scary-Gorilla/v3/';
+const project='itssoren.github.io/Scary-Gorilla/v4/';
 const names=Array.from({length:10},(_,i)=>'☁ ScaryPlayer'+i);
 const timeout=4600;
 const channels=new Set(names);

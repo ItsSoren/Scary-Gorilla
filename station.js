@@ -6,9 +6,9 @@ export const cells = [
   '#.....#.###...#',
   '#.....#...#...#',
   '###.#####.#.###',
-  '#...#.....#..B#',
+  '#...V.....#..B#',
   '#.#.#.##..###.#',
-  '#.#...#.......#',
+  '#.#...T.......#',
   '#.#####.####..#',
   '#...L...#.....#',
   '#.#.###.#.###.#',
@@ -61,13 +61,22 @@ export function inShelter(x,z,level){
   return column>=1&&column<=5&&row>=1&&row<=3;
 }
 export function open(col,row,level=0) {const cell=levels[level][row]?.[col];return !!cell&&cell!=='#';}
+export function monsterOpen(col,row,level){
+  const cell=levels[level][row]?.[col];
+  return open(col,row,level)&&cell!=='V'&&cell!=='T';
+}
+export function passageAt(x,z,level){
+  const [col,row]=cellOf(x,z,level);
+  const cell=levels[level][row]?.[col];
+  return cell==='V'||cell==='T'?{kind:cell,col,row}:null;
+}
 export function fits(x,z,r=.25,level=0) {
   const [left,top]=cellOf(x-r,z-r,level),[right,bottom]=cellOf(x+r,z+r,level);
   for(let row=top;row<=bottom;row++) for(let col=left;col<=right;col++) if(!open(col,row,level)) return false;
   return true;
 }
 const neighbors=[[1,0],[-1,0],[0,1],[0,-1]];
-export function nextStep(from,to,level=0) {
+export function nextStep(from,to,level=0,forMonster=false) {
   const [sx,sz]=cellOf(from.x,from.z,level),[tx,tz]=cellOf(to.x,to.z,level);
   if(sx===tx&&sz===tz)return to.clone();
   const visited=new Set([sz*15+sx]),queue=[[sx,sz,null]];
@@ -75,7 +84,7 @@ export function nextStep(from,to,level=0) {
     const [x,z,first]=queue[i];
     for(const [dx,dz] of neighbors){
       const col=x+dx,row=z+dz,key=row*15+col;
-      if(!open(col,row,level)||visited.has(key))continue;
+      if(!(forMonster?monsterOpen(col,row,level):open(col,row,level))||visited.has(key))continue;
       const step=first??point(col,row,from.y,level);
       if(col===tx&&row===tz)return step;
       visited.add(key);
@@ -344,6 +353,31 @@ function buildSectorLandmark(scene,level,color){
   }
   signAt(panel,['CONTRÔLE DES SAS','BANQUE CRYOGÉNIQUE','CULTURES · BIOCONFINEMENT'][level],color,0,2.69,.07).scale.setScalar(1.31);
 }
+function buildPassage(scene,x,z,kind,furniture){
+  const vault=kind==='V',low=vault?2.92:1.18;
+  const shell=paint(vault?'#536774':'#506360',.34),lining=paint('#273638',.28);
+  shell.map=surfaceMap('wall');
+  const strip=new T.MeshBasicMaterial({color:vault?'#e9ac54':'#63b4d3'});
+  piece(scene,box,shell,x,(low+3.2)/2,z,tile,3.2-low,tile);
+  furniture(x,(low+3.2)/2,z,tile,3.2-low,tile);
+  if(vault){
+    const deck=piece(scene,box,shell,x,.39,z,tile,.78,tile);
+    deck.material=paint('#7e8781',.35);deck.material.map=surfaceMap('floor');
+    furniture(x,.39,z,tile,.78,tile);
+  }else{
+    for(let i=0;i<5;i++){
+      piece(scene,box,lining,x-1.4+i*.7,1.15,z,.048,.055,3.19);
+      piece(scene,box,strip,x-1.4+i*.7,1.109,z,.022,.012,.83);
+    }
+  }
+  for(const side of [-1,1]){
+    const edge=x+side*(tile/2+.034),angle=side*Math.PI/2;
+    const sign=signAt(scene,vault?'PASSERELLE · SAUTE':'GAINE · ACCROUPIS-TOI',vault?'#ffcf82':'#a7e4ff',
+      edge,vault?2.78:1.53,z,angle);
+    sign.scale.setScalar(1.28);
+    piece(scene,box,strip,edge,vault?.715:1.22,z,.034,.062,tile-.13);
+  }
+}
 export function buildStation(scene,level){
   const size=levels[level].length;
   const solids=[],fixtures=[],groups={floor:[],wall:[],ceiling:[],trim:[],rail:[],light:[],service:[],vent:[],floorStripe:[]};
@@ -356,6 +390,7 @@ export function buildStation(scene,level){
   }
   solid(0,-.22,0,size*tile,.44,size*tile);
   const lighting=[];
+  const furniture=(...args)=>fixtures.push(solid(...args));
   for(let row=0;row<size;row++)for(let col=0;col<size;col++){
     const {x,z}=point(col,row,0,level);
     if(!open(col,row,level)){
@@ -368,6 +403,11 @@ export function buildStation(scene,level){
     }
     batch('floor',x,-.045,z,tile-.025,.09,tile-.025);
     batch('ceiling',x,3.23,z,tile,.09,tile);
+    const marker=levels[level][row][col];
+    if(marker==='V'||marker==='T'){
+      buildPassage(scene,x,z,marker,furniture);
+      continue;
+    }
     if(!inShelter(x,z,level)&&(row+col)%6===0)batch('floorStripe',x,.006,z,1.45,.008,.29);
     for(const [dx,dz] of neighbors){
       if(open(col+dx,row+dz,level))continue;
@@ -409,7 +449,7 @@ export function buildStation(scene,level){
     const exitSign=placard('SAS 04','#83e1c3');
     exitSign.position.copy(exit).add(new T.Vector3(0,2.66,1.57));exitSign.rotation.y=Math.PI;scene.add(exitSign);
   }
-  const cargo=level===0?buildShelter(scene,lighting,(...args)=>fixtures.push(solid(...args))):null;
+  const cargo=level===0?buildShelter(scene,lighting,furniture):null;
   buildSectorLandmark(scene,level,ledColor);
   const lift=where('L',0,level);
   piece(scene,box,paint('#725e3a'),lift.x,.026,lift.z,2.4,.05,2.4);

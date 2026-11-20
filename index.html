@@ -22,17 +22,17 @@
   <div class="actions"><button id="start" disabled>Jouer sur écran</button><button id="vr" disabled>Entrer en VR</button></div>
   <p><button id="audio-test" type="button">Tester le son</button></p>
   <p id="status" role="status">Chargement du laboratoire…</p>
-  <details><summary>Commandes</summary><p>PC · ZQSD / WASD, glisse pour regarder, Maj pour courir. E saisit ou lâche, F utilise l’objet.</p><p>VR · pousse sur les surfaces avec les mains ou utilise le stick gauche. Stick droit pour tourner. Grip pour saisir, gâchette pour utiliser.</p><p>Ascenseur · E ou grip pour monter, F ou gâchette pour descendre. Tactile · glisse à gauche pour marcher, à droite pour regarder.</p></details>
+  <details><summary>Commandes</summary><p>PC · ZQSD / WASD, glisse pour regarder. Maj pour courir, Espace pour sauter, C pour s’accroupir. E saisit ou lâche, F utilise l’objet.</p><p>VR · prends appui avec tes mains pour franchir la passerelle et baisse-toi pour entrer dans la gaine. Stick gauche pour marcher, stick droit pour tourner. Grip pour saisir, gâchette pour utiliser.</p><p>Ascenseur · E ou grip pour monter, F ou gâchette pour descendre. Tactile · glisse à gauche pour marcher, à droite pour regarder.</p></details>
 </main>
 <div id="hud" hidden>
   <button id="back" aria-label="Retour au menu">← Menu</button>
   <output id="counter">CARTOUCHES 0 / 3</output><output id="salvage">ÉCHANTILLONS 0 / 3</output><output id="floor"></output><output id="connection"></output>
   <output id="hint" role="status"></output>
   <div id="reticle" aria-hidden="true">⌖</div>
-  <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button></nav>
+  <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button><button data-flat-action="jump">Sauter</button><button data-flat-action="crouch">S’accroupir</button></nav>
 </div>
 <script type="module">
-  import('./game.js?v=refuge2').catch(error=>{
+  import('./game.js?v=parcours1').catch(error=>{
     document.querySelector('#status').textContent='Le moteur 3D n’a pas pu se charger. Vérifie la connexion et recharge la page.';
     console.error(error);
   });

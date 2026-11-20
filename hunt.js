@@ -1,12 +1,12 @@
-import {cellOf, inShelter, levels, open, point, tile} from './station.js?v=refuge2';
+import {cellOf, inShelter, levels, monsterOpen, passageAt, point, tile} from './station.js?v=parcours1';
 
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
 const key=(x,z)=>z*16+x;
 const grids=levels.map((rows,level)=>{
   const nodes=new Map();
   for(let z=1;z<rows.length-1;z++)for(let x=1;x<rows[z].length-1;x++){
-    if(!open(x,z,level))continue;
-    const next=directions.map(([dx,dz])=>[x+dx,z+dz]).filter(([x,z])=>open(x,z,level)).map(([x,z])=>key(x,z));
+    if(!monsterOpen(x,z,level))continue;
+    const next=directions.map(([dx,dz])=>[x+dx,z+dz]).filter(([x,z])=>monsterOpen(x,z,level)).map(([x,z])=>key(x,z));
     const position=point(x,z,0,level);
     if(!inShelter(position.x,position.z,level))nodes.set(key(x,z),{position,next});
   }
@@ -37,6 +37,14 @@ function looking(player,position){
   const range=distance(player,position);
   if(range<.22)return true;
   return degrees(targetHeading(player),{x:position.x-player.x,z:position.z-player.z})>range*.43;
+}
+function investigate(m,lure){
+  const passage=passageAt(lure.x,lure.z,lure.level);
+  m.mode=behavior.investigate;
+  if(passage){
+    const side=m.root.position.x<lure.x?-1:1;
+    m.goal.copy(point(passage.col+side,passage.row,0,m.level));
+  }else m.goal.set(lure.x,0,lure.z);
 }
 function corner(level,monster,mark,aim,role,visible,occupied){
   const grid=grids[level];
@@ -112,7 +120,7 @@ export function createHunt({visible,lifts,patrolPoints}){
       const position=m.root.position;
       const nearLure=lure.until>time&&lure.level===m.level&&!inShelter(lure.x,lure.z,lure.level)&&distance(position,lure)<(i===2?28:20);
       if(nearLure&&rank===0&&(!assault||trail>1.2)){
-        m.mode=behavior.investigate;m.goal.set(lure.x,0,lure.z);
+        investigate(m,lure);
         continue;
       }
       if(mark&&trail<10&&m.level!==mark.level&&team&&(rank<2||age>10)){
@@ -127,6 +135,13 @@ export function createHunt({visible,lifts,patrolPoints}){
         continue;
       }
       if(mark&&trail<10&&m.level===mark.level&&(team||rank===0)){
+        const passage=passageAt(mark.x,mark.z,mark.level);
+        if(passage){
+          const exit=Math.sign(mark.heading.x)||1;
+          m.mode=rank===0?behavior.flank:behavior.hide;
+          m.goal.copy(point(passage.col+(rank===0?exit:-exit),passage.row,0,m.level));
+          continue;
+        }
         const sees=trail<.42&&visible(position,mark,m.level);
         const range=distance(position,mark);
         const blindSide=sees&&!looking(mark,position);
@@ -141,10 +156,7 @@ export function createHunt({visible,lifts,patrolPoints}){
         }
         continue;
       }
-      if(nearLure){
-        m.mode=behavior.investigate;m.goal.set(lure.x,0,lure.z);
-        continue;
-      }
+      if(nearLure){investigate(m,lure);continue;}
       if(m.level!==i&&time>=m.nextLift){
         const lift=lifts[m.level];
         m.mode=behavior.patrol;m.goal.copy(lift);

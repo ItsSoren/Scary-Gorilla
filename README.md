@@ -2,7 +2,9 @@
 
 Station Écho est un jeu d’horreur WebXR pour casque, PC et mobile, basé sur la locomotion et les commandes de [Gorilla Lab](https://github.com/ItsSoren/VR).
 
-Prends une lampe ou une balise dans le refuge de départ. Récupère les cartouches de la Réception, de la Cryogénie et de l’Incubation, puis active le sas 04 au premier niveau. Le labo couvre **2 731,75 m²** de cases praticables, murs exclus. La balise détourne une patrouille en désignant la position où elle est posée. Les créatures restent à l’extérieur du refuge.
+Prends une lampe ou une balise dans le refuge de départ. Récupère les cartouches de la Réception, de la Cryogénie et de l’Incubation, puis active le sas 04 au premier niveau. Le labo couvre **2 756,25 m²** de cases praticables, murs exclus. La balise détourne une patrouille en désignant la position où elle est posée. Les créatures restent à l’extérieur du refuge.
+
+En Réception, la passerelle jaune s’ouvre au-dessus d’un rebord. Saute ou prends appui avec les mains pour y monter. La gaine bleue est assez basse pour obliger à s’accroupir. Les créatures passent par les couloirs et peuvent tenter de t’intercepter à la sortie.
 
 Une capsule d’échantillon se trouve près du poste technique de chaque étage. Ramène-la au dépôt vert du refuge et utilise-la sur place pour la comptabiliser. Les échantillons sont facultatifs et partagés avec ton salon.
 
@@ -10,7 +12,7 @@ Les créatures retiennent la dernière position entendue ou aperçue. Elles se t
 
 ## Jouer
 
-- PC · ZQSD ou WASD, glisser pour regarder, Maj pour courir, E pour saisir ou lâcher et F pour utiliser.
+- PC · ZQSD ou WASD, glisser pour regarder, Maj pour courir, Espace pour sauter, C pour s’accroupir, E pour saisir ou lâcher et F pour utiliser.
 - Casque · Ouvre le jeu en HTTPS dans le navigateur du casque. Pousse sur les surfaces avec les mains ou utilise le stick gauche. Grip pour saisir, gâchette pour utiliser, stick droit pour tourner par crans.
 - Ascenseur · Sur la plateforme, E ou grip pour monter, F ou gâchette pour descendre.
 - Multijoueur · Sélectionne le même salon que tes amis avant de lancer. Les cartouches, les poses des joueurs et les monstres sont partagés. Chaque joueur manipule sa propre lampe et sa propre balise.
