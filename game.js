@@ -4,7 +4,7 @@ import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=incubation1';
 import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=incubation1';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=incubation1';
-import {createCreatureAudio} from './creature-audio.js';
+import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
 const el=id=>document.getElementById(id);
 const canvas=el('game'),menu=el('menu'),hud=el('hud');
@@ -502,10 +502,18 @@ function visibleBetween(from,to,level=session.level){
   }
   return true;
 }
+const attackProfiles=[
+  {duration:1.22,windup:.16,impact:.31,near:.74,far:1.62,tilt:.09,reach:.9,noise:460,rate:.84},
+  {duration:1.14,windup:.24,impact:.46,near:.82,far:1.45,tilt:.37,reach:.43,noise:2480,rate:1.12},
+  {duration:1.02,windup:.10,impact:.25,near:.76,far:1.55,tilt:.21,reach:1.05,noise:1620,rate:1},
+];
 function makeScare(index){
   const model=predator(index);
+  const profile=attackProfiles[index];
   const intense=el('shock').value==='full';
-  const direction=sight.clone();direction.y=0;direction.normalize();
+  const direction=sight.clone();direction.y=0;
+  if(direction.lengthSq()<.001)direction.set(0,0,-1);
+  direction.normalize();
   model.root.position.copy(eye).addScaledVector(direction,intense?1.23:1.52);
   model.root.position.y=eye.y-1.78*model.height;
   model.root.rotation.y=Math.atan2(-direction.x,-direction.z);
@@ -518,13 +526,12 @@ function makeScare(index){
     }
   });
   const spray=intense?woundModel(model,index):[];
+  for(const {drop} of spray)drop.visible=false;
   model.head.traverse(part=>{if(part.isMesh&&!part.userData.disposeMaterial)part.renderOrder=Math.max(12,part.renderOrder);});
   model.jaw.scale.y*=2.3;
   scene.add(model.root);
-  session.scare={...model,spray,direction,start:frameTime,end:frameTime+(intense?1.05:.52),intense};
-  creatureAudio?.play(index,true,intense?1.16:.34,0,false);
-  tone([130,370,78][index],38,.37,intense?.29:.06,'triangle');
-  if(intense)scrape(1380,.63,.78,0);
+  session.scare={...model,spray,direction,profile,index,impacted:false,start:frameTime,end:frameTime+(intense?profile.duration:.65),intense};
+  tone([96,440,185][index],[55,302,105][index],.21,intense?.23:.07,'triangle');
   showHint(names[index]+' t’a trouvé.');
 }
 function clearScare(){
@@ -537,12 +544,30 @@ function scareTick(){
   const scare=session.scare;
   if(frameTime<scare.end){
     const elapsed=frameTime-scare.start;
-    const lunge=Math.min(1,elapsed/.22);
-    scare.root.position.copy(eye).addScaledVector(scare.direction,scare.intense?1.23-.51*lunge:1.52-.18*lunge);
-    scare.root.position.y=eye.y-1.78*scare.height;
-    scare.head.rotation.z=Math.sin(elapsed*41)*.16*lunge;
-    scare.jaw.scale.y=.31+Math.sin(elapsed*18)*.08;
-    for(const {drop,x,y,z} of scare.spray)drop.position.set(x*elapsed,-.15+y*elapsed-elapsed**2*.55,.57+z*elapsed);
+    const {index,profile,intense}=scare;
+    const windup=T.MathUtils.clamp(elapsed/profile.windup,0,1);
+    const progress=T.MathUtils.clamp((elapsed-profile.windup)/(profile.impact-profile.windup),0,1);
+    const lunge=progress**(index===1?1.4:2.5);
+    const sinceImpact=Math.max(0,elapsed-profile.impact);
+    const recoil=(1-Math.exp(-sinceImpact*8))*.15;
+    const side=index===1?.52*(1-lunge)*windup:index===2?Math.sin(elapsed*21)*.11*(1-lunge):0;
+    scare.root.position.copy(eye).addScaledVector(scare.direction,(intense?profile.far:1.65)+(profile.near-(intense?profile.far:1.65))*lunge*(intense?1:.44)+recoil);
+    scare.root.position.x-=scare.direction.z*side;scare.root.position.z+=scare.direction.x*side;
+    scare.root.position.y=eye.y-1.78*scare.height-(index===2?.37:0)*(1-lunge);
+    scare.body.rotation.x=(index===0?-.23:.12)*windup*(1-lunge)+.16*lunge;
+    scare.head.rotation.z=profile.tilt*(index===1?windup*(1-lunge):Math.sin(elapsed*29)*lunge);
+    scare.jaw.scale.y=.15+(index===2?.13+.08*Math.sin(elapsed*28):.18)*lunge;
+    scare.arms.forEach((arm,i)=>{arm.rotation.x=-profile.reach*lunge*(index===1&&i===0?.32:1);});
+    if(elapsed>=profile.impact&&!scare.impacted){
+      scare.impacted=true;
+      creatureAudio?.play(index,true,intense?1.08:.31,0,false,profile.rate);
+      tone([130,515,230][index],[37,170,64][index],.29,intense?.24:.06,'triangle');
+      if(intense)scrape(profile.noise,index===0?.42:.32,.53,0);
+    }
+    for(const {drop,x,y,z} of scare.spray){
+      drop.visible=scare.impacted;
+      drop.position.set(x*sinceImpact*2.1,-.15+y*sinceImpact*1.8-sinceImpact**2*.76,.57+z*sinceImpact*1.65);
+    }
     return true;
   }
   clearScare();

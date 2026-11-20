@@ -37,13 +37,13 @@ function voiceClip(audio,type,attack){
 }
 export function createCreatureAudio(audio,output){
   const cache=new Map();
-  function play(type,attack,gain,pan,occluded){
+  function play(type,attack,gain,pan,occluded,attackRate=1){
     if(audio.state!=='running'||gain<=0)return;
     const key=type*2+Number(attack);
     if(!cache.has(key))cache.set(key,voiceClip(audio,type,attack));
     const node=audio.createBufferSource(),amp=audio.createGain();
     node.buffer=cache.get(key);amp.gain.value=gain;
-    node.playbackRate.value=attack?1:.94+Math.random()*.12;
+    node.playbackRate.value=attack?attackRate:.94+Math.random()*.12;
     node.connect(amp);
     let tail=amp;
     if(occluded){
