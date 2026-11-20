@@ -2,9 +2,11 @@
 
 Station Écho est un jeu d’horreur WebXR pour casque, PC et mobile, basé sur la locomotion et les commandes de [Gorilla Lab](https://github.com/ItsSoren/VR).
 
-Récupère les cartouches de la Réception, de la Cryogénie et de l’Incubation, puis active le sas 04 au premier niveau. Le labo couvre **2 707,25 m²** de cases praticables, murs exclus. Utilise la lampe pour explorer et la balise acoustique pour détourner une patrouille.
+Prends une lampe ou une balise dans le refuge de départ. Récupère les cartouches de la Réception, de la Cryogénie et de l’Incubation, puis active le sas 04 au premier niveau. Le labo couvre **2 731,75 m²** de cases praticables, murs exclus. La balise détourne une patrouille en désignant la position où elle est posée. Les créatures restent à l’extérieur du refuge.
 
-Les créatures retiennent la dernière position entendue ou aperçue. Elles se transmettent la piste, se répartissent les angles et empruntent l’ascenseur pour rejoindre une chasse. En mode intense, leur attaque déclenche un gros plan sanglant et un cri de proximité. Le mode atténué réduit le son et retire le sang.
+Une capsule d’échantillon se trouve près du poste technique de chaque étage. Ramène-la au dépôt vert du refuge et utilise-la sur place pour la comptabiliser. Les échantillons sont facultatifs et partagés avec ton salon.
+
+Les créatures retiennent la dernière position entendue ou aperçue. Elles se transmettent la piste, se répartissent les angles et empruntent l’ascenseur pour rejoindre une chasse. Bélier grogne avant de charger, Voile siffle et Écorce produit des cliquetis courts. Les sons sont atténués par les murs. En mode intense, leur attaque déclenche un gros plan sanglant et un cri de proximité. Le mode atténué réduit le son et retire le sang.
 
 ## Jouer
 

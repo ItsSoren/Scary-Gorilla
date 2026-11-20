@@ -1,9 +1,10 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js';
-import {buildStation, fits, itemModel, levelNames, nextStep, placard, predator, where, woundModel} from './station.js';
-import {behavior, createHunt, huntingSpeed} from './hunt.js';
+import {createRooms} from './rooms.js?v=refuge1';
+import {buildStation, fits, inShelter, itemModel, levelNames, nextStep, placard, predator, where, woundModel} from './station.js?v=refuge1';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=refuge1';
+import {createCreatureAudio} from './creature-audio.js';
 
 const el=id=>document.getElementById(id);
 const canvas=el('game'),menu=el('menu'),hud=el('hud');
@@ -35,7 +36,7 @@ const velocity=new T.Vector3(),movement=new T.Vector3(),bodyDelta=new T.Vector3(
 const groundRig=new T.Vector3();
 const key=createKeyboardState();
 const names=['Bélier','Voile','Écorce'];
-const routes=['DESA','BEL','CEL'];
+const routes=['DEXA','BEL','CEL'];
 const idlePositions=['A','B','C'].map((symbol,level)=>where(symbol,0,level));
 const hunt=createHunt({visible:visibleBetween,lifts:stations.map(station=>station.lift),
   patrolPoints:routes.map((route,level)=>Array.from(route,symbol=>where(symbol,0,level)))});
@@ -43,14 +44,18 @@ const monsters=idlePositions.map((init,index)=>{
   const model=predator(index);
   scene.add(model.root);
   model.root.position.copy(init);
-  return {...model,home:init,target:init.clone(),goal:init.clone(),route:0,phase:0,nextThink:0,level:index,mode:behavior.patrol,nextLift:0};
+  return {...model,home:init,target:init.clone(),goal:init.clone(),route:0,phase:0,nextThink:0,level:index,mode:behavior.patrol,nextLift:0,
+    charging:false,attackAt:0,voiceAt:0,stride:0,foot:0,lastPosition:init.clone(),lastLevel:index};
 });
 const items=[
   ...['A','B','C'].map((symbol,level)=>({name:'Cartouche '+(level+1),kind:'cell',symbol,bit:1<<level,level})),
-  {name:'Lampe',kind:'lamp',symbol:'S',level:0}, {name:'Balise acoustique',kind:'decoy',symbol:'D',level:0},
-].map((item,index)=>{
+  {name:'Lampe',kind:'lamp',symbol:'S',level:0}, {name:'Balise acoustique',kind:'decoy',symbol:'S',level:0},
+  ...[0,1,2].map(level=>({name:'Échantillon '+(level+1),kind:'sample',symbol:'E',bit:8<<level,level})),
+].map(item=>{
   const mesh=itemModel(item.kind),home=where(item.symbol,.63,item.level);
-  if(index===3)home.x+=.82;
+  if(item.kind==='lamp'||item.kind==='decoy'){
+    home.x+=item.kind==='lamp'?-.92:.92;home.z+=1.42;home.y=1.08;
+  }
   scene.add(mesh);
   return {...item,mesh,home,homeLevel:item.level,owner:null};
 });
@@ -63,8 +68,8 @@ const seenBeacons=new Map();
 const rooms=createRooms(status=>{el('connection').textContent=status;if(!session.play)el('status').textContent=status;});
 const wrist=new T.Group();
 const wristMessages=new Map();
-let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,lastAtmos=0,frameTime=0;
-let audio,master,noise;
+let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
+let audio,master,noise,creatureAudio;
 const hands=[0,1].map(index=>{
   const input=renderer.xr.getController(index),grip=renderer.xr.getControllerGrip(index);
   const mesh=new T.Mesh(new T.IcosahedronGeometry(.09,1),new T.MeshStandardMaterial({color:index?'#b47142':'#799178'}));
@@ -74,8 +79,8 @@ const hands=[0,1].map(index=>{
   const hand={grip,input,mesh:{quaternion:new T.Quaternion()},target:new T.Vector3(),valid:false,held:null,source:null,scan:new T.Vector3()};
   input.addEventListener('connected',e=>{hand.source=e.data;});
   input.addEventListener('disconnected',()=>{release(hand);hand.source=null;hand.valid=false;});
-  input.addEventListener('squeezestart',()=>{if(session.play)grab(hand);});
-  input.addEventListener('selectstart',()=>{if(session.play)use(hand);});
+  input.addEventListener('squeezestart',()=>{if(session.play){if(audio?.state!=='running')audioStart();grab(hand);}});
+  input.addEventListener('selectstart',()=>{if(session.play){if(audio?.state!=='running')audioStart();use(hand);}});
   return hand;
 });
 const flatHand={held:null};
@@ -135,16 +140,20 @@ function universeView(){
 function moveRig(dx,dy,dz){
   const offsetX=eye.x-rig.position.x,offsetZ=eye.z-rig.position.z;
   previous.copy(rig.position);
-  if(fits(rig.position.x+offsetX+dx,rig.position.z+offsetZ,.25,session.level))rig.position.x+=dx;
-  if(fits(rig.position.x+offsetX,rig.position.z+offsetZ+dz,.25,session.level))rig.position.z+=dz;
+  const area=station();
+  const clear=(x,z)=>fits(x,z,.25,session.level)&&!area.fixtures.some(({min,max})=>
+    eye.y<max.y+1&&x>min.x-.25&&x<max.x+.25&&z>min.z-.25&&z<max.z+.25);
+  if(clear(rig.position.x+offsetX+dx,rig.position.z+offsetZ))rig.position.x+=dx;
+  if(clear(rig.position.x+offsetX,rig.position.z+offsetZ+dz))rig.position.z+=dz;
   rig.position.y=T.MathUtils.clamp(rig.position.y+dy,0,1);
   if(rig.position.y===0&&velocity.y<0)velocity.y=0;
   bodyDelta.subVectors(rig.position,previous);
 }
 function resetBody(useLift=false){
   rig.position.copy(useLift?station().lift:where('S'));rig.rotation.set(0,0,0);
+  if(renderer.xr.isPresenting&&!useLift)rig.rotation.y=Math.PI;
   view.position.set(0,1.62,0);
-  yaw=-Math.PI/2;pitch=0;
+  yaw=useLift?-Math.PI/2:Math.PI;pitch=0;
   view.rotation.set(pitch,yaw,0,'YXZ');
   velocity.set(0,0,0);locomotion.reset();
 }
@@ -173,10 +182,15 @@ function setXRMessage(text){
   wrist.clear();wrist.add(wristMessages.get(text));
 }
 function showHint(text){el('hint').textContent=text;}
+function atCargo(){
+  const cargo=station().cargo;
+  return cargo&&Math.hypot(eye.x-cargo.x,eye.z-cargo.z)<1.65;
+}
 function audioStart(){
   try{
     if(!audio){
       audio=new AudioContext();master=audio.createGain();master.connect(audio.destination);
+      creatureAudio=createCreatureAudio(audio,master);
       const hum=audio.createOscillator(),volume=audio.createGain();
       hum.type='triangle';hum.frequency.value=112;volume.gain.value=.13;
       hum.connect(volume).connect(master);hum.start();
@@ -231,7 +245,7 @@ function findItem(position,look=null){
     if(item.level!==session.level||!item.mesh.visible||item.owner)continue;
     aux.subVectors(item.mesh.position,position);
     const distance=aux.length();
-    if(distance>=max||(look&&aux.dot(look)<distance*.77)||!visibleBetween(position,item.mesh.position))continue;
+    if(distance>=max||(look&&aux.dot(look)<distance*.76)||!visibleBetween(position,item.mesh.position))continue;
     candidate=item;max=distance;
   }
   return candidate;
@@ -255,15 +269,21 @@ function use(hand){
   if(!item)return;
   if(item.kind==='lamp')session.light=!session.light;
   if(item.kind==='decoy'){
+    if(localBeacon.until>frameTime)return;
     lure.x=item.mesh.position.x;lure.z=item.mesh.position.z;
     lure.until=frameTime+7;lure.level=session.level;session.beacon++;
     Object.assign(localBeacon,lure);
     tone(720,480,.22,.35,'triangle');
     release(hand);
   }
-  if(item.kind==='cell'){
+  if(item.kind==='sample'&&!atCargo()){
+    tone(185,148,.2,.22,'triangle');
+    return;
+  }
+  if(item.kind==='cell'||item.kind==='sample'){
     session.mask|=item.bit;release(hand);item.mesh.visible=false;
     tone(370,850,.3,.28,'triangle');
+    if(item.kind==='sample')tone(740,1110,.44,.25,'sine');
   }
 }
 const controls=createFlatControls({
@@ -292,6 +312,7 @@ function resetGame(){
   monsters.forEach((m,i)=>{
     m.root.position.copy(m.home);m.target.copy(m.home);m.goal.copy(m.home);m.nextThink=0;m.route=i;
     m.level=i;m.mode=behavior.patrol;m.nextLift=0;m.phase=0;
+    m.charging=false;m.stride=0;m.foot=0;m.voiceAt=0;m.lastLevel=i;m.lastPosition.copy(m.home);
   });
   selectLevel(0);
   resetBody();
@@ -456,8 +477,8 @@ function makeScare(index){
   model.jaw.scale.y*=2.3;
   scene.add(model.root);
   session.scare={...model,spray,direction,start:frameTime,end:frameTime+(intense?1.05:.52),intense};
-  tone([190,520,91][index],36,.55,intense?.49:.13,'sawtooth');
-  tone([961,393,731][index],204,.39,intense?.30:.08,'triangle');
+  creatureAudio?.play(index,true,intense?1.16:.34,0,false);
+  tone([130,370,78][index],38,.37,intense?.29:.06,'triangle');
   if(intense)scrape(1380,.63,.78,0);
   showHint(names[index]+' t’a trouvé.');
 }
@@ -488,10 +509,17 @@ function scareTick(){
 function patrol(dt,peers,host){
   const local={id:rooms.id,x:eye.x,z:eye.z,yaw:Math.atan2(sight.x,sight.z),
     run:session.run,light:session.light,level:session.level,
-    protected:frameTime<session.immunity||session.won||!!session.scare};
+    protected:frameTime<session.immunity||session.won||!!session.scare||inShelter(eye.x,eye.z,session.level)};
   if(host)hunt.plan(frameTime,monsters,[local,...peers],lure);
   for(const [i,m] of monsters.entries()){
     const pos=m.root.position;
+    const charging=m.mode===behavior.charge;
+    const hiding=m.mode===behavior.hide||m.mode===behavior.watch;
+    const newCharge=charging&&!m.charging;
+    const windup=[.56,.38,.27][i];
+    if(newCharge)m.attackAt=frameTime+windup;
+    const winding=charging&&frameTime<m.attackAt;
+    const striking=charging&&!winding;
     if(host&&frameTime>=m.nextThink){
       m.nextThink=frameTime+.17+(i*.018);
       m.target.copy(nextStep(pos,m.goal,m.level));
@@ -499,19 +527,50 @@ function patrol(dt,peers,host){
     if(host){
       const dx=m.target.x-pos.x,dz=m.target.z-pos.z,dist=Math.hypot(dx,dz);
       if(dist>.045){
-        const step=Math.min(dist,huntingSpeed[m.mode]*[1,.94,1.04][i]*dt)/dist;
-        if(fits(pos.x+dx*step,pos.z,.34,m.level))pos.x+=dx*step;
-        if(fits(pos.x,pos.z+dz*step,.34,m.level))pos.z+=dz*step;
+        const burst=striking&&frameTime-m.attackAt<[.86,.42,.25][i];
+        const speed=winding?.64:burst?[6.1,5.45,5.6][i]:huntingSpeed[m.mode]*[.91,.94,1.06][i];
+        const step=Math.min(dist,speed*dt)/dist;
+        if(fits(pos.x+dx*step,pos.z,.34,m.level)&&!inShelter(pos.x+dx*step,pos.z,m.level))pos.x+=dx*step;
+        if(fits(pos.x,pos.z+dz*step,.34,m.level)&&!inShelter(pos.x,pos.z+dz*step,m.level))pos.z+=dz*step;
         m.root.rotation.y=Math.atan2(dx,dz);
       }
     }
-    const charging=m.mode===behavior.charge, hiding=m.mode===behavior.hide||m.mode===behavior.watch;
+    const travelled=m.lastLevel===m.level?Math.min(.32,pos.distanceTo(m.lastPosition)):0;
+    m.lastLevel=m.level;m.lastPosition.copy(pos);
+    m.stride+=travelled*[4.7,6.3,7.9][i];
+    const foot=Math.floor(m.stride/Math.PI),footfall=foot!==m.foot;
+    m.foot=foot;
     m.root.visible=m.level===session.level;
-    m.root.scale.y=T.MathUtils.lerp(m.root.scale.y,m.height*(hiding?.78:1),Math.min(1,dt*6));
-    m.head.rotation.x=.07+Math.sin(frameTime*4+i)*(hiding?.035:.11);
-    m.head.rotation.z=hiding?Math.sin(frameTime*2+i)*.24:0;
-    for(const [side,arm] of m.arms.entries())arm.rotation.x=Math.sin(frameTime*(charging?12:5)+side*Math.PI+i)*(hiding?.09:.4);
-    if(m.root.visible&&charging&&!local.protected&&!session.scare&&Math.hypot(pos.x-eye.x,pos.z-eye.z)<1.23&&visibleBetween(pos,eye))makeScare(i);
+    const pace=T.MathUtils.clamp(travelled/dt*.31,0,1);
+    const gait=Math.sin(m.stride),breath=Math.sin(frameTime*3.8+i);
+    m.body.position.y=(hiding?[-.21,-.39,-.32][i]:winding?-.25:0)+Math.abs(gait)*pace*[.15,.085,.1][i];
+    m.body.rotation.x=(hiding?[.12,.25,.42][i]:striking?[.25,.36,.48][i]:.03)+breath*.026;
+    m.body.rotation.z=gait*pace*[.095,.18,.11][i];
+    m.head.rotation.x=.04+breath*.07-(striking?.13:0);
+    m.head.rotation.z=hiding?Math.sin(frameTime*2+i)*[.13,.34,.23][i]:0;
+    m.jaw.scale.y=.12+(winding||striking?.18:.04)*(.63+.37*breath);
+    for(const [side,arm] of m.arms.entries()){
+      const swing=gait*(side===0?-1:1);
+      arm.rotation.x=swing*pace*[.68,.83,.94][i]-(winding?.21:0);
+      m.elbows[side].rotation.x=-.12-Math.abs(swing)*pace*.44-(striking?.23:0);
+      m.legs[side].rotation.x=-swing*pace*[.63,.51,.55][i];
+    }
+    m.charging=charging;
+    if(!m.root.visible||session.scare||session.won)continue;
+    const dx=pos.x-eye.x,dz=pos.z-eye.z,distance=Math.hypot(dx,dz);
+    if(distance>20)continue;
+    const pan=T.MathUtils.clamp((-dx*sight.z+dz*sight.x)/Math.max(1,distance),-1,1);
+    const visible=visibleBetween(pos,eye);
+    const gain=Math.max(0,1-distance/20)*(visible?1:.56);
+    if(footfall&&distance<13){
+      tone([115,170,215][i],57,.17,gain*(striking?.32:.18),'triangle',pan);
+      if(i!==0&&striking)scrape(i===1?690:1450,.16,gain*.12,pan);
+    }
+    if(newCharge||frameTime>m.voiceAt){
+      m.voiceAt=frameTime+(charging?[1.9,2.6,1.54][i]:hiding?[4.1,3.1,2.7][i]:[5.5,6.5,4.5][i]);
+      creatureAudio?.play(i,charging,gain*(charging?.95:hiding?.56:.47),pan,!visible);
+    }
+    if(striking&&!local.protected&&distance<[1.45,1.15,1.29][i]&&visible)makeScare(i);
   }
 }
 function updateHeld(){
@@ -586,7 +645,7 @@ function syncWorld(peers,dt){
   rooms.send({
     x:quantize(eye.x),y:quantize(eye.y),z:quantize(eye.z),yaw:quantize(Math.atan2(sight.x,sight.z)),
     run:Number(session.run),light:session.light,mask:session.mask,level:session.level,
-    protected:frameTime<session.immunity||session.won||!!session.scare,
+    protected:frameTime<session.immunity||session.won||!!session.scare||inShelter(eye.x,eye.z,session.level),
     beacon:localBeacon.until>frameTime?session.beacon:0,bx:quantize(localBeacon.x),bz:quantize(localBeacon.z),bl:localBeacon.level,
     predators:host?monsters.map(({root,level,mode})=>[quantize(root.position.x),quantize(root.position.z),quantize(Math.atan2(Math.sin(root.rotation.y),Math.cos(root.rotation.y))),level,mode]):null,
   });
@@ -603,36 +662,28 @@ function drawFrame(time){
     syncWorld(peers,dt);
     updateHeld();
     const exit=station().exit;
-    if(exit&&session.mask===7&&Math.hypot(eye.x-exit.x,eye.z-exit.z)<1.44&&!session.won&&!session.scare){
+    if(exit&&(session.mask&7)===7&&Math.hypot(eye.x-exit.x,eye.z-exit.z)<1.44&&!session.won&&!session.scare){
       session.won=true;
       tone(216,432,.7,.4,'triangle');
     }
     const count=(session.mask&1)+Number(Boolean(session.mask&2))+Number(Boolean(session.mask&4));
+    const salvage=Number(Boolean(session.mask&8))+Number(Boolean(session.mask&16))+Number(Boolean(session.mask&32));
     el('counter').textContent='CARTOUCHES '+count+' / 3';
+    el('salvage').textContent='ÉCHANTILLONS '+salvage+' / 3';
     if(session.won)showHint('Confinement rétabli · mission réussie. Retour au menu pour rejouer.');
     else if(!session.scare){
       nearItem=renderer.xr.isPresenting?null:findItem(eye,sight);
       const held=flatHand.held;
       const liftHint=['E · monter','E · monter / F · descendre','F · descendre'][session.level];
-      showHint(atLift()?liftHint:held?'E · lâcher / F · utiliser '+held.name:nearItem?'E · saisir '+nearItem.name:session.mask===7?'Rejoins le sas 04, niveau 1.':'');
+      showHint(atLift()?liftHint:held?.kind==='sample'?(atCargo()?'F · déposer '+held.name:'Rapporte '+held.name+' au refuge, niveau 1.'):
+        held?'E · lâcher / F · utiliser '+held.name:nearItem?'E · saisir '+nearItem.name:
+        count===3?'Rejoins le sas 04, niveau 1.':inShelter(eye.x,eye.z,session.level)?'REFUGE · Prends ton matériel et suis le balisage.':'');
     }
     const liftMessage=['GRIP · MONTER','GRIP ↑  /  GÂCHETTE ↓','GÂCHETTE · DESCENDRE'][session.level];
-    const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':atLift()?liftMessage:count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
+    const sample=hands.some(hand=>hand.held?.kind==='sample');
+    const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':atLift()?liftMessage:
+      sample?(atCargo()?'GÂCHETTE · DÉPOSER':'ÉCHANTILLON → REFUGE'):count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
-    if(!session.scare&&!session.won&&frameTime>lastAtmos){
-      const closest=monsters.filter(m=>m.level===session.level)
-        .sort((a,b)=>a.root.position.distanceToSquared(eye)-b.root.position.distanceToSquared(eye))[0];
-      if(closest){
-        const p=closest.root.position,distance=Math.hypot(p.x-eye.x,p.z-eye.z);
-        const pan=T.MathUtils.clamp(((p.x-eye.x)*-sight.z+(p.z-eye.z)*sight.x)/Math.max(1,distance),-1,1);
-        const watch=closest.mode!==behavior.patrol;
-        if(distance<16){
-          tone(watch?70:53,32,.42,.07+(16-distance)*.009,'triangle',pan);
-          if(watch)scrape(closest.mode===behavior.charge?700:370,.35,.15,pan);
-        }
-        lastAtmos=frameTime+(watch?1.05:3.5)+Math.random()*.8;
-      }else lastAtmos=frameTime+1;
-    }
   }
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
   for(const position of station().lighting){
@@ -641,10 +692,11 @@ function drawFrame(time){
       second=first;secondDistance=firstDistance;first=position;firstDistance=distance;
     }else if(distance<secondDistance){second=position;secondDistance=distance;}
   }
+  const safeLight=inShelter(eye.x,eye.z,session.level);
   corridorLights.forEach((light,i)=>{
     light.position.copy(i===0?first:second);
-    light.color.set(station().ledColor);
-    light.intensity=(session.scare?.intense?45:34)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
+    light.color.set(safeLight?'#e1ffe1':station().ledColor);
+    light.intensity=safeLight?66:(session.scare?.intense?45:34)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
   });
   renderer.render(scene,view);
 }

@@ -2,8 +2,8 @@ import * as T from './three.js';
 
 export const cells = [
   '###############',
-  '#S....#....A..#',
-  '#.##..#.###...#',
+  '#..S..#....A..#',
+  '#.....#.###...#',
   '#.....#...#...#',
   '###.#####.#.###',
   '#...#.....#..B#',
@@ -55,6 +55,11 @@ export function where(symbol,y=0,level=0) {
   return point(rows[row].indexOf(symbol),row,y,level);
 }
 export function cellOf(x,z,level=0) {return [Math.round(x/tile+center(level)),Math.round(z/tile+center(level))];}
+export function inShelter(x,z,level){
+  if(level!==0)return false;
+  const [column,row]=cellOf(x,z,level);
+  return column>=1&&column<=5&&row>=1&&row<=3;
+}
 export function open(col,row,level=0) {const cell=levels[level][row]?.[col];return !!cell&&cell!=='#';}
 export function fits(x,z,r=.25,level=0) {
   const [left,top]=cellOf(x-r,z-r,level),[right,bottom]=cellOf(x+r,z+r,level);
@@ -81,6 +86,7 @@ export function nextStep(from,to,level=0) {
 }
 const box = new T.BoxGeometry(1,1,1);
 const sphere = new T.IcosahedronGeometry(1,1);
+const muscle = new T.SphereGeometry(1,14,10);
 const limbs = new T.CylinderGeometry(.72,1,1,7);
 const skins=[
   new T.MeshStandardMaterial({color:'#4a352f',roughness:.93}),
@@ -100,42 +106,52 @@ function piece(parent,geo,material,x,y,z,sx,sy,sz){
 }
 export function predator(type){
   const root=new T.Group(),skin=skins[type],glow=eyeMats[type];
+  if(!skin.map){skin.map=surfaceMap('skin');skin.needsUpdate=true;}
   const wide=[1.04,.77,1.16][type],height=[1,.79,1.13][type];
-  piece(root,sphere,skin,0,1.32,0,.69*wide,.82,.43);
-  piece(root,sphere,skin,0,1.8,.03,.84*wide,.43,.48);
+  const body=new T.Group();
+  root.add(body);
+  piece(body,muscle,skin,0,1.32,0,.69*wide,.82,.43);
+  piece(body,muscle,skin,0,1.8,.03,.84*wide,.43,.48);
   const head=new T.Group();
   head.position.set(0,1.96,.34);
-  root.add(head);
-  piece(head,sphere,skin,0,.15,0,.46*wide,.48,.4);
-  piece(head,sphere,type===1?ceramic:skin,0,.05,.24,.35*wide,.32,.33);
+  body.add(head);
+  piece(head,muscle,skin,0,.15,0,.46*wide,.48,.4);
+  piece(head,muscle,type===1?ceramic:skin,0,.05,.24,.35*wide,.32,.33);
   const jaw=piece(head,sphere,dark,0,-.12,.48,.27*wide,.15,.09);
   for(const side of [-1,1]){
     piece(head,sphere,glow,side*.17*wide,.14,.49,type===1?.1:.065,.035,.04);
     piece(head,limbs,ceramic,side*.15,-.12,.55,.035,.14,.036);
-    piece(root,limbs,skin,side*.3,.51,-.08,.24,.85,.24).rotation.z=side*.13;
-    piece(root,sphere,skin,side*.31,.14,.03,.29,.19,.34);
   }
+  const legs=[-1,1].map(side=>{
+    const leg=new T.Group();
+    leg.position.set(side*.32,.87,-.08);body.add(leg);
+    piece(leg,muscle,skin,0,-.28,0,.245,.42,.235);
+    piece(leg,muscle,skin,0,-.71,.12,.23,.15,.33);
+    return leg;
+  });
+  const elbows=[];
   const arms=[-1,1].map(side=>{
     const arm=new T.Group();
     arm.position.set(side*.65*wide,1.73,0);
-    root.add(arm);
+    body.add(arm);
     arm.rotation.z=side*[.29,.59,.45][type];
-    piece(arm,limbs,skin,0,-.41,0,.25,.87,.26);
-    piece(arm,limbs,skin,0,-1.02,.02,.2,.55,.23);
-    piece(arm,sphere,skin,0,-1.3,.05,.23,.24,.19);
-    for(let i=-1;i<=1;i++)piece(arm,limbs,ceramic,i*.1,-1.47,.11,.025,.14,.027);
+    piece(arm,muscle,skin,0,-.41,0,.25,.49,.26);
+    const elbow=new T.Group();elbow.position.y=-.8;arm.add(elbow);elbows.push(elbow);
+    piece(elbow,muscle,skin,0,-.24,.02,.2,.37,.23);
+    piece(elbow,muscle,skin,0,-.53,.05,.23,.24,.19);
+    for(let i=-1;i<=1;i++)piece(elbow,limbs,ceramic,i*.1,-.68,.11,.025,.14,.027);
     return arm;
   });
   if(type===0){
-    for(let i=0;i<4;i++)piece(root,box,ceramic,0,1.23+i*.17,-.37,.39,.075,.09);
+    for(let i=0;i<4;i++)piece(body,box,ceramic,0,1.23+i*.17,-.37,.39,.075,.09);
   }else if(type===1){
     piece(head,box,dark,0,.06,.51,.53,.085,.085);
     for(const side of [-1,1])piece(head,limbs,skin,side*.40,.33,-.03,.13,.48,.13).rotation.z=side*.42;
   }else{
-    for(let i=-2;i<=2;i++)piece(root,limbs,ceramic,i*.19,2.04-Math.abs(i)*.08,-.24,.10,.42,.11).rotation.x=-.63;
+    for(let i=-2;i<=2;i++)piece(body,limbs,ceramic,i*.19,2.04-Math.abs(i)*.08,-.24,.10,.42,.11).rotation.x=-.63;
   }
   root.scale.y=height;
-  return {root,head,jaw,arms,height};
+  return {root,body,head,jaw,arms,elbows,legs,height};
 }
 const blood=new T.MeshBasicMaterial({color:'#81121c',depthTest:false,depthWrite:false});
 const freshBlood=new T.MeshBasicMaterial({color:'#e6353a',depthTest:false,depthWrite:false});
@@ -172,6 +188,11 @@ export function itemModel(kind){
   }else if(kind==='decoy'){
     piece(root,box,paint('#6f5541'),0,0,0,.32,.20,.27);
     piece(root,sphere,eyeMats[0],0,.12,0,.07,.045,.07);
+  }else if(kind==='sample'){
+    piece(root,limbs,paint('#3c514a',.38),0,0,0,.137,.38,.137);
+    piece(root,limbs,new T.MeshBasicMaterial({color:'#b8ef65'}),0,.043,0,.099,.245,.099);
+    piece(root,limbs,paint('#56554a',.45),0,.2,0,.137,.075,.137);
+    piece(root,limbs,paint('#56554a',.45),0,-.15,0,.137,.07,.137);
   }else{
     piece(root,box,paint('#516566',.35),0,0,0,.21,.44,.17);
     piece(root,box,eyeMats[1],0,.03,.09,.096,.29,.02);
@@ -192,38 +213,133 @@ export function placard(text,color='#ffb979'){
   return new T.Mesh(new T.PlaneGeometry(1.7,.425),new T.MeshBasicMaterial({map:texture,side:T.DoubleSide}));
 }
 const surfaceMaps=new Map();
+const grain=(x,y)=>{
+  const hash=Math.imul(x+653,197639)^Math.imul(y+2971,1500450271);
+  return ((Math.imul(hash^(hash>>>15),2246822519)>>>0)%1024)/1023;
+};
+function mottling(x,y,scale){
+  const gx=Math.floor(x/scale),gy=Math.floor(y/scale),u=x/scale-gx,v=y/scale-gy;
+  return T.MathUtils.lerp(T.MathUtils.lerp(grain(gx,gy),grain(gx+1,gy),u),
+    T.MathUtils.lerp(grain(gx,gy+1),grain(gx+1,gy+1),u),v);
+}
 function surfaceMap(kind){
   if(surfaceMaps.has(kind))return surfaceMaps.get(kind);
-  const size=128,data=new Uint8Array(size*size*4);
+  const size=256,data=new Uint8Array(size*size*4);
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const n=(Math.imul(x+19,73856093)^Math.imul(y+11,19349663))>>>0;
-    let value=194+n%52+14*Math.sin(x/9)*Math.cos(y/13);
-    if(kind==='floor'){
-      const edge=Math.min(x%64,y%64);
-      if(edge<2)value=58;
-      else if(edge<4)value=144;
-      else if((x%16+y%16)%16<2&&((x>>3)^(y>>3))%2)value-=29;
+    const fine=grain(x,y),mottle=mottling(x,y,34),fineMottle=mottling(x,y,8);
+    const edgeX=Math.min(x,size-1-x),edgeY=Math.min(y,size-1-y);
+    let value=138+fine*22+mottle*67+fineMottle*22;
+    if(kind==='skin'){
+      const pores=Math.sin(x*.56+y*.18+mottle*8)*Math.sin(y*.81);
+      value=105+mottle*93+fineMottle*38+pores*22;
+    }else if(kind==='floor'){
+      const edge=Math.min(x%128,127-x%128,y%128,127-y%128);
+      if(edge<2)value=49+fine*21;
+      else if(edge<4)value=126+fine*19;
+      const treadX=(x+(y>>4)%2*10)%20-10,treadY=y%16-8;
+      if(Math.abs(treadY-treadX*.37)<1.4&&Math.abs(treadX)<4)value+=17;
     }else{
-      if(x<3||y<4||y>124)value*=.55;
-      if((x===9||x===118)&&(y===9||y===118))value=45;
-      if(kind==='wall'&&y>80)value*=.8;
-      if(n%199<4)value*=.63;
+      if(edgeX<3||edgeY<3)value*=.52;
+      if((edgeX-13)**2+(edgeY-13)**2<14)value=70+fine*50;
+      if(kind==='wall'&&y<92){value*=y<56?.58:.82;if(y>59&&y<64)value*=1.26;}
+      if(kind==='wall'&&y<150)value-=Math.max(0,mottling(x,y*.12,6)-.48)*38*(1-y/186);
+      if(kind==='ceiling'&&(x%50<2||y<7))value*=.64;
     }
     const offset=(y*size+x)*4;
-    data.set([value,value,value,255],offset);
+    data[offset]=Math.min(255,value);data[offset+1]=Math.min(255,value*.984);
+    data[offset+2]=Math.min(255,value*.955);data[offset+3]=255;
   }
   const map=new T.DataTexture(data,size,size);
   map.colorSpace=T.SRGBColorSpace;
   map.generateMipmaps=true;map.minFilter=T.LinearMipmapLinearFilter;map.magFilter=T.LinearFilter;
   map.anisotropy=4;map.needsUpdate=true;surfaceMaps.set(kind,map);return map;
 }
+const hazardMap=(()=>{
+  const data=new Uint8Array(64*64*4);
+  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
+    const bright=(x+y)%32<17,wear=.75+grain(x,y)*.25,offset=(y*64+x)*4;
+    data.set(bright?[226*wear,163*wear,49*wear,255]:[36*wear,40*wear,38*wear,255],offset);
+  }
+  const texture=new T.DataTexture(data,64,64);
+  texture.colorSpace=T.SRGBColorSpace;texture.magFilter=T.LinearFilter;texture.needsUpdate=true;
+  return texture;
+})();
+function signAt(scene,text,color,x,y,z,rotation=0){
+  const sign=placard(text,color);
+  sign.position.set(x,y,z);sign.rotation.y=rotation;scene.add(sign);return sign;
+}
+function buildShelter(scene,lighting,furniture){
+  const start=where('S'),cargo=where('S',0);
+  cargo.z+=8;cargo.x-=4.1;
+  const casing=paint('#273533',.38),shell=paint('#72847b',.38);
+  const glow=new T.MeshBasicMaterial({color:'#b3ffbb'});
+  // Wide muster room, warm overhead strips and color-coded supply stands.
+  for(const side of [-1,1]){
+    const x=start.x+side*.92,z=start.z+1.42;
+    piece(scene,box,casing,x,.42,z,.66,.82,.57);
+    piece(scene,box,shell,x,.87,z,.73,.09,.65);
+    furniture(x,.45,z,.73,.9,.65);
+    piece(scene,box,glow,x,.56,z-.3,.48,.029,.018);
+    signAt(scene,side<0?'LAMPE':'BALISE','#d7efe1',x,1.33,z+.34,Math.PI).scale.setScalar(.42);
+  }
+  piece(scene,box,casing,cargo.x,.53,cargo.z,1.44,1.06,1.06);
+  piece(scene,box,shell,cargo.x,1.07,cargo.z,1.56,.08,1.12);
+  furniture(cargo.x,.55,cargo.z,1.56,1.1,1.12);
+  piece(scene,box,glow,cargo.x,1.12,cargo.z,.86,.023,.56);
+  signAt(scene,'DÉPÔT D’ÉCHANTILLONS','#b3ffbb',cargo.x,1.7,cargo.z+.55);
+  const board=signAt(scene,'REFUGE 01 · STATION ÉCHO','#b3ffbb',start.x,2.2,start.z-1.62);
+  board.scale.setScalar(2.35);
+  for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  RÉCUPÈRE 3 CARTOUCHES','03  REJOINS LE SAS 04'].entries()){
+    signAt(scene,text,'#d8e9dc',start.x,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
+  }
+  const gate=where('S',0);gate.z+=tile*2.5;
+  for(const side of [-1,1]){
+    piece(scene,box,shell,gate.x+side*1.55,1.48,gate.z,.24,2.94,.31);
+    piece(scene,box,glow,gate.x+side*1.4,1.68,gate.z-.17,.055,2,.021);
+  }
+  piece(scene,box,new T.MeshStandardMaterial({map:hazardMap,roughness:.84}),gate.x,2.95,gate.z,3.1,.22,.34);
+  signAt(scene,'ACCÈS LABORATOIRE','#ffd382',gate.x,2.65,gate.z-.18,Math.PI);
+  signAt(scene,'REFUGE · ZONE SÛRE','#b3ffbb',gate.x,2.65,gate.z+.18);
+  piece(scene,box,new T.MeshStandardMaterial({map:hazardMap,roughness:.84}),gate.x,.012,gate.z,3.13,.018,.29);
+  lighting.push(new T.Vector3(start.x,2.89,start.z+.5),new T.Vector3(cargo.x,2.85,cargo.z));
+  return cargo;
+}
+function buildSectorLandmark(scene,level,color){
+  const origin=where('E',0,level),[col,row]=cellOf(origin.x,origin.z,level);
+  const wall=neighbors.find(([x,z])=>!open(col+x,row+z,level));
+  if(!wall)return;
+  const panel=new T.Group(),[dx,dz]=wall;
+  panel.position.copy(origin);panel.position.x+=dx*1.65;panel.position.z+=dz*1.65;
+  panel.rotation.y=Math.atan2(-dx,-dz);scene.add(panel);
+  const steel=paint('#4f6568',.43),black=paint('#1b292d',.3);
+  const lit=new T.MeshBasicMaterial({color});
+  piece(panel,box,steel,0,1.48,-.015,2.44,2.12,.22);
+  piece(panel,box,black,0,1.48,.105,2.24,1.93,.028);
+  if(level===0){
+    for(let i=-1;i<=1;i++){
+      piece(panel,box,steel,i*.64,1.51,.145,.49,.96,.068);
+      piece(panel,box,lit,i*.64,1.75,.186,.33,.24,.022);
+      for(let j=0;j<4;j++)piece(panel,box,black,i*.64,1.44-j*.097,.189,.28,.025,.011);
+    }
+  }else{
+    for(let i=-1;i<=1;i++){
+      const column=level===1?new T.MeshStandardMaterial({color:'#408699',roughness:.22,metalness:.26,emissive:'#276377',emissiveIntensity:.37}):paint('#647951',.38);
+      piece(panel,limbs,column,i*.59,1.42,.174,.36,1.11,.15);
+      piece(panel,box,lit,i*.59,2.04,.155,.29,.07,.035);
+      piece(panel,box,steel,i*.59,.82,.155,.48,.17,.13);
+    }
+  }
+  signAt(panel,['CONTRÔLE DES SAS','BANQUE CRYOGÉNIQUE','CULTURES · BIOCONFINEMENT'][level],color,0,2.69,.07).scale.setScalar(1.31);
+}
 export function buildStation(scene,level){
   const size=levels[level].length;
-  const solids=[],groups={floor:[],wall:[],ceiling:[],trim:[],rail:[],light:[]};
+  const solids=[],fixtures=[],groups={floor:[],wall:[],ceiling:[],trim:[],rail:[],light:[],service:[],vent:[],floorStripe:[]};
   const dummy=new T.Object3D();
   function batch(key,x,y,z,sx,sy,sz){groups[key].push([x,y,z,sx,sy,sz]);}
   function solid(x,y,z,sx,sy,sz){
-    solids.push({bounds:new T.Box3(new T.Vector3(x-sx/2,y-sy/2,z-sz/2),new T.Vector3(x+sx/2,y+sy/2,z+sz/2)),friction:.88});
+    const bounds=new T.Box3(new T.Vector3(x-sx/2,y-sy/2,z-sz/2),new T.Vector3(x+sx/2,y+sy/2,z+sz/2));
+    solids.push({bounds,friction:.88});
+    return bounds;
   }
   solid(0,-.22,0,size*tile,.44,size*tile);
   const lighting=[];
@@ -239,11 +355,17 @@ export function buildStation(scene,level){
     }
     batch('floor',x,-.045,z,tile-.025,.09,tile-.025);
     batch('ceiling',x,3.23,z,tile,.09,tile);
+    if(!inShelter(x,z,level)&&(row+col)%6===0)batch('floorStripe',x,.006,z,1.45,.008,.29);
     for(const [dx,dz] of neighbors){
       if(open(col+dx,row+dz,level))continue;
       const edgeX=x+dx*(tile/2-.035),edgeZ=z+dz*(tile/2-.035);
       batch('rail',edgeX,2.54,edgeZ,dx?.085:tile-.13,.18,dz?.085:tile-.13);
       batch('light',edgeX-dx*.05,2.54,edgeZ-dz*.05,dx?.032:tile-.22,.061,dz?.032:tile-.22);
+      if((row*7+col*3+dx+dz+level*3+24)%5!==0)continue;
+      batch('service',edgeX-dx*.07,1.45,edgeZ-dz*.07,dx?.14:1.54,.85,dz?.14:1.54);
+      for(let i=0;i<5;i++){
+        batch('vent',edgeX-dx*.153,1.19+i*.123,edgeZ-dz*.153,dx?.032:1.21,.045,dz?.032:1.21);
+      }
     }
     if((row+col*3)%3!==0)continue;
     batch('rail',x,3.11,z,.22,.11,2.55);
@@ -251,10 +373,12 @@ export function buildStation(scene,level){
     lighting.push(new T.Vector3(x,2.94,z));
   }
   const ledColor=['#ff6334','#39ddff','#81ffa0'][level];
-  const palette={floor:'#808d88',wall:['#a4b2ae','#8299ab','#8da597'][level],ceiling:'#627279',trim:'#405053',rail:'#202831',light:ledColor};
+  const palette={floor:'#929a92',wall:['#c2c7bb','#a3bbc9','#99ac96'][level],ceiling:'#78848a',trim:'#465154',rail:'#202831',light:ledColor,service:'#667570',vent:'#252c2f',floorStripe:'#ffffff'};
   for(const [key,instances] of Object.entries(groups)){
+    if(!instances.length)continue;
     const material=key==='light'?new T.MeshBasicMaterial({color:palette[key]}):paint(palette[key]);
     if(['floor','wall','ceiling'].includes(key))material.map=surfaceMap(key);
+    if(key==='floorStripe')material.map=hazardMap;
     const mesh=new T.InstancedMesh(box,material,instances.length);
     instances.forEach(([x,y,z,sx,sy,sz],i)=>{
       dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
@@ -271,14 +395,13 @@ export function buildStation(scene,level){
     piece(scene,box,paint('#355b51'),exit.x,1.21,exit.z+1.69,2.14,2.42,.14);
     const exitSign=placard('SAS 04','#83e1c3');
     exitSign.position.copy(exit).add(new T.Vector3(0,2.66,1.57));exitSign.rotation.y=Math.PI;scene.add(exitSign);
-    const start=where('S');
-    const sign=placard('STATION ÉCHO');
-    sign.position.copy(start).add(new T.Vector3(0,2.13,-1.71));scene.add(sign);
   }
+  const cargo=level===0?buildShelter(scene,lighting,(...args)=>fixtures.push(solid(...args))):null;
+  buildSectorLandmark(scene,level,ledColor);
   const lift=where('L',0,level);
   piece(scene,box,paint('#725e3a'),lift.x,.026,lift.z,2.4,.05,2.4);
   const liftSign=placard('ASCENSEUR · '+levelNames[level].toUpperCase());
   liftSign.position.copy(lift).add(new T.Vector3(0,2.26,-1.55));
   scene.add(liftSign);
-  return {solids,lighting,ledColor,exit,lift,scene};
+  return {solids,fixtures,lighting,ledColor,exit,lift,scene,cargo};
 }

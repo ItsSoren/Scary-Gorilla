@@ -1,4 +1,4 @@
-import {cellOf, levels, open, point, tile} from './station.js';
+import {cellOf, inShelter, levels, open, point, tile} from './station.js?v=refuge1';
 
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
 const key=(x,z)=>z*16+x;
@@ -7,7 +7,8 @@ const grids=levels.map((rows,level)=>{
   for(let z=1;z<rows.length-1;z++)for(let x=1;x<rows[z].length-1;x++){
     if(!open(x,z,level))continue;
     const next=directions.map(([dx,dz])=>[x+dx,z+dz]).filter(([x,z])=>open(x,z,level)).map(([x,z])=>key(x,z));
-    nodes.set(key(x,z),{position:point(x,z,0,level),next});
+    const position=point(x,z,0,level);
+    if(!inShelter(position.x,position.z,level))nodes.set(key(x,z),{position,next});
   }
   return {nodes,distances:new Map()};
 });
@@ -22,7 +23,7 @@ function distances(grid,origin){
   for(let i=0;i<queue.length;i++){
     const id=queue[i];
     for(const next of grid.nodes.get(id)?.next??[]){
-      if(result.has(next))continue;
+      if(!grid.nodes.has(next)||result.has(next))continue;
       result.set(next,result.get(id)+1);queue.push(next);
     }
   }
@@ -70,7 +71,7 @@ export function createHunt({visible,lifts,patrolPoints}){
     const samples=new Map(players.map(player=>[player.id,player]));
     for(const [id,mark] of dossiers)if(time-mark.lastSeen>16||!samples.has(id))dossiers.delete(id);
     for(const player of players){
-      if(player.protected)continue;
+      if(player.protected||inShelter(player.x,player.z,player.level)){dossiers.delete(player.id);continue;}
       let nearest=Infinity;
       for(const [i,m] of monsters.entries()){
         if(m.level!==player.level)continue;
@@ -109,7 +110,7 @@ export function createHunt({visible,lifts,patrolPoints}){
     });
     for(const [rank,{m,i}] of members.entries()){
       const position=m.root.position;
-      const nearLure=lure.until>time&&lure.level===m.level&&distance(position,lure)<(i===2?28:20);
+      const nearLure=lure.until>time&&lure.level===m.level&&!inShelter(lure.x,lure.z,lure.level)&&distance(position,lure)<(i===2?28:20);
       if(nearLure&&rank===0&&(!assault||trail>1.2)){
         m.mode=behavior.investigate;m.goal.set(lure.x,0,lure.z);
         continue;

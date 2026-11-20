@@ -1,5 +1,5 @@
 const relay='wss://clouddata.turbowarp.org';
-const project='itssoren.github.io/Scary-Gorilla/v2/';
+const project='itssoren.github.io/Scary-Gorilla/v3/';
 const names=Array.from({length:10},(_,i)=>'☁ ScaryPlayer'+i);
 const timeout=4600;
 const channels=new Set(names);
@@ -17,7 +17,7 @@ export function unpack(value){
       typeof state.light!=='boolean'||typeof state.protected!=='boolean'||
       !Number.isInteger(state.level)||state.level<0||state.level>2||
       !Number.isInteger(state.bl)||state.bl<0||state.bl>2||
-      !Number.isInteger(state.mask)||state.mask<0||state.mask>7||
+      !Number.isInteger(state.mask)||state.mask<0||state.mask>63||
       !Number.isSafeInteger(state.beacon)||state.beacon<0||!finite(state.bx,26)||!finite(state.bz,26))return null;
     if(state.predators!==null&&(!Array.isArray(state.predators)||state.predators.length!==3||
       !state.predators.every(p=>Array.isArray(p)&&p.length===5&&finite(p[0],26)&&finite(p[1],26)&&finite(p[2],7)&&
