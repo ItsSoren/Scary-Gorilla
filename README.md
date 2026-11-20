@@ -8,6 +8,8 @@ En Réception, la passerelle jaune s’ouvre au-dessus d’un rebord. Saute ou p
 
 Une capsule d’échantillon se trouve près du poste technique de chaque étage. Ramène-la au dépôt vert du refuge et utilise-la sur place pour la comptabiliser. Les échantillons sont facultatifs et partagés avec ton salon.
 
+La troisième cartouche donne l’alerte. Les créatures se coordonnent et attaquent plus vite après avoir repéré une cible. Au premier niveau, reste huit secondes dans le cercle du sas 04 pour t’extraire. Si tu quittes le cercle ou es rattrapé, le compte à rebours repart de zéro.
+
 Les créatures retiennent la dernière position entendue ou aperçue. Elles se transmettent la piste, se répartissent les angles et empruntent l’ascenseur pour rejoindre une chasse. Bélier grogne avant de charger, Voile siffle et Écorce produit des cliquetis courts. Les sons sont atténués par les murs. En mode intense, leur attaque déclenche un gros plan sanglant et un cri de proximité. Le mode atténué réduit le son et retire le sang.
 
 ## Jouer

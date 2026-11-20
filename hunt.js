@@ -1,4 +1,4 @@
-import {cellOf, cryoVapor, inShelter, levels, monsterOpen, passageAt, point, tile} from './station.js?v=incubation1';
+import {cellOf, cryoVapor, inShelter, levels, monsterOpen, passageAt, point, tile} from './station.js?v=extraction1';
 
 const directions=[[1,0],[-1,0],[0,1],[0,-1]];
 const key=(x,z)=>z*16+x;
@@ -73,7 +73,7 @@ export function createHunt({visible,lifts,patrolPoints}){
     lastPlan=-Infinity;
     dossiers.clear();
   }
-  function plan(time,monsters,players,lure){
+  function plan(time,monsters,players,lure,alarm=false){
     if(time-lastPlan<.26)return;
     lastPlan=time;
     const samples=new Map(players.map(player=>[player.id,player]));
@@ -110,8 +110,8 @@ export function createHunt({visible,lifts,patrolPoints}){
       .sort((a,b)=>(time-a.lastSeen)*2+a.certainty*.28-(time-b.lastSeen)*2-b.certainty*.28)[0];
     const age=mark?time-mark.firstSeen:0;
     const trail=mark?time-mark.lastSeen:Infinity;
-    const team=!!mark&&age>3.8&&trail<9;
-    const assault=!!mark&&age>6.3&&trail<4.2;
+    const team=!!mark&&age>(alarm?1.65:3.8)&&trail<9;
+    const assault=!!mark&&age>(alarm?3.3:6.3)&&trail<4.2;
     occupied.clear();
     const members=monsters.map((m,i)=>({m,i})).sort((a,b)=>{
       if(!mark)return a.i-b.i;

@@ -469,6 +469,11 @@ export function buildStation(scene,level){
   }
   const exit=level===0?where('X'):null;
   if(exit){
+    const extractionZone=new T.Mesh(new T.RingGeometry(1.35,1.43,48),
+      new T.MeshBasicMaterial({color:'#9eeab6',side:T.DoubleSide}));
+    extractionZone.rotation.x=-Math.PI/2;
+    extractionZone.position.copy(exit);extractionZone.position.y=.024;
+    scene.add(extractionZone);
     piece(scene,box,paint('#355b51'),exit.x,1.21,exit.z+1.69,2.14,2.42,.14);
     const exitSign=placard('SAS 04','#83e1c3');
     exitSign.position.copy(exit).add(new T.Vector3(0,2.66,1.57));exitSign.rotation.y=Math.PI;scene.add(exitSign);

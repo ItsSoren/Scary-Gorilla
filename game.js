@@ -1,9 +1,9 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js?v=incubation1';
-import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=incubation1';
-import {behavior, createHunt, huntingSpeed} from './hunt.js?v=incubation1';
+import {createRooms} from './rooms.js?v=extraction1';
+import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=extraction1';
+import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
 const el=id=>document.getElementById(id);
@@ -73,6 +73,8 @@ const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
 let audio,master,noise,creatureAudio;
 let grounded=true,touchCrouch=false;
+const extractionSeconds=8;
+let extractionCharge=0,extractionAlarm=false;
 let stickAssist=true;
 const vrGrip={grip:5,slide:3,jump:5,weight:4};
 const hands=[0,1].map(index=>{
@@ -322,6 +324,7 @@ addEventListener('blur',()=>{key.clear();controls.clear();});
 
 function resetGame(){
   session.mask=0;session.won=false;session.immunity=frameTime+5;
+  extractionCharge=0;extractionAlarm=false;
   session.light=false;
   clearScare();
   lure.until=0;localBeacon.until=0;seenBeacons.clear();hunt.reset();
@@ -580,7 +583,7 @@ function patrol(dt,peers,host){
   const local={id:rooms.id,x:eye.x,y:eye.y,z:eye.z,yaw:Math.atan2(sight.x,sight.z),
     run:session.run,light:session.light,level:session.level,
     protected:frameTime<session.immunity||session.won||!!session.scare||inShelter(eye.x,eye.z,session.level)};
-  if(host)hunt.plan(frameTime,monsters,[local,...peers],lure);
+  if(host)hunt.plan(frameTime,monsters,[local,...peers],lure,(session.mask&7)===7);
   for(const [i,m] of monsters.entries()){
     const pos=m.root.position;
     const charging=m.mode===behavior.charge;
@@ -723,6 +726,28 @@ function syncWorld(peers,dt){
 }
 
 selectLevel(0);resetBody();
+function tickExtraction(dt){
+  const ready=(session.mask&7)===7;
+  if(ready&&!extractionAlarm){
+    extractionAlarm=true;
+    tone(510,735,.45,.31,'triangle');
+  }
+  if(session.won)return 0;
+  const exit=station().exit;
+  if(!ready||!exit||session.scare||Math.hypot(eye.x-exit.x,eye.z-exit.z)>=1.44){
+    extractionCharge=0;
+    return 0;
+  }
+  const previous=Math.floor(extractionCharge);
+  extractionCharge+=dt;
+  if(extractionCharge+1e-6>=extractionSeconds){
+    session.won=true;
+    tone(216,432,.7,.4,'triangle');
+  }else if(Math.floor(extractionCharge)>previous){
+    tone(342,420,.14,.19,'triangle');
+  }
+  return Math.max(0,Math.ceil(extractionSeconds-extractionCharge));
+}
 function drawFrame(time){
   const dt=Math.min(.05,Math.max(.001,(time-previousTime)/1000));previousTime=time;frameTime=time/1000;
   universeView();
@@ -732,11 +757,7 @@ function drawFrame(time){
     const peers=rooms.activePeers();
     syncWorld(peers,dt);
     updateHeld();
-    const exit=station().exit;
-    if(exit&&(session.mask&7)===7&&Math.hypot(eye.x-exit.x,eye.z-exit.z)<1.44&&!session.won&&!session.scare){
-      session.won=true;
-      tone(216,432,.7,.4,'triangle');
-    }
+    const remaining=tickExtraction(dt);
     const count=(session.mask&1)+Number(Boolean(session.mask&2))+Number(Boolean(session.mask&4));
     const salvage=Number(Boolean(session.mask&8))+Number(Boolean(session.mask&16))+Number(Boolean(session.mask&32));
     el('counter').textContent='CARTOUCHES '+count+' / 3';
@@ -746,13 +767,13 @@ function drawFrame(time){
       nearItem=renderer.xr.isPresenting?null:findItem(eye,sight);
       const held=flatHand.held;
       const liftHint=['E · monter','E · monter / F · descendre','F · descendre'][session.level];
-      showHint(atLift()?liftHint:held?.kind==='sample'?(atCargo()?'F · déposer '+held.name:'Rapporte '+held.name+' au refuge, niveau 1.'):
+      showHint(remaining?'SAS 04 · Reste dans la zone · '+remaining+' s':atLift()?liftHint:held?.kind==='sample'?(atCargo()?'F · déposer '+held.name:'Rapporte '+held.name+' au refuge, niveau 1.'):
         held?'E · lâcher / F · utiliser '+held.name:nearItem?'E · saisir '+nearItem.name:
         count===3?'Rejoins le sas 04, niveau 1.':inShelter(eye.x,eye.z,session.level)?'REFUGE · Prends ton matériel et suis le balisage.':'');
     }
     const liftMessage=['GRIP · MONTER','GRIP ↑  /  GÂCHETTE ↓','GÂCHETTE · DESCENDRE'][session.level];
     const sample=hands.some(hand=>hand.held?.kind==='sample');
-    const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':atLift()?liftMessage:
+    const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':remaining?'EXTRACTION · '+remaining+' s':atLift()?liftMessage:
       sample?(atCargo()?'GÂCHETTE · DÉPOSER':'ÉCHANTILLON → REFUGE'):count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
   }

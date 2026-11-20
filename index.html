@@ -12,7 +12,7 @@
 <main id="menu">
   <p class="location">STATION ÉCHO / CONFINEMENT ROMPU</p>
   <h1>SCARY<br>GORILLA</h1>
-  <p class="intro">Équipe-toi au refuge. Récupère une cartouche à chaque étage et rejoins le sas 04. Rapporte les échantillons au dépôt si tu en trouves.</p>
+  <p class="intro">Équipe-toi au refuge. Récupère une cartouche à chaque étage et rejoins le sas 04 et tiens la zone pendant 8 secondes. Rapporte les échantillons au dépôt si tu en trouves.</p>
   <div class="options">
     <label for="room">Salon</label>
     <select id="room"><option value="">En solo</option><option value="1">Salon 1</option><option value="2">Salon 2</option><option value="3">Salon 3</option></select>
@@ -33,7 +33,7 @@
   <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button><button data-flat-action="jump">Sauter</button><button data-flat-action="crouch">S’accroupir</button></nav>
 </div>
 <script type="module">
-  import('./game.js?v=attaques1').catch(error=>{
+  import('./game.js?v=extraction1').catch(error=>{
     document.querySelector('#status').textContent='Le moteur 3D n’a pas pu se charger. Vérifie la connexion et recharge la page.';
     console.error(error);
   });
