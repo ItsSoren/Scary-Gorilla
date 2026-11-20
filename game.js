@@ -14,6 +14,9 @@ const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.xr.enabled=true;
 renderer.xr.setReferenceSpaceType('local-floor');
+renderer.xr.setFramebufferScaleFactor?.(.8);
+let xrPose=null,xrFrames=0,xrFailure='',xrStarting=false;
+const xrHeading=new T.Quaternion();
 const view=new T.PerspectiveCamera(67,1,.06,45);
 const rig=new T.Group();
 scene.add(rig);
@@ -120,7 +123,13 @@ addEventListener('resize',resize);resize();
 
 function universeView(){
   rig.updateWorldMatrix(true,false);
-  if(renderer.xr.isPresenting)renderer.xr.updateCamera(view);
+  if(renderer.xr.isPresenting&&xrPose){
+    const {position,orientation}=xrPose;
+    eye.set(position.x,position.y,position.z).applyMatrix4(rig.matrixWorld);
+    xrHeading.set(orientation.x,orientation.y,orientation.z,orientation.w);
+    sight.set(0,0,-1).applyQuaternion(xrHeading).transformDirection(rig.matrixWorld);
+    return;
+  }
   view.getWorldPosition(eye);view.getWorldDirection(sight);
 }
 function moveRig(dx,dy,dz){
@@ -320,25 +329,37 @@ el('audio-test').onclick=()=>{
 };
 el('vr').onclick=async()=>{
   el('vr').disabled=true;
+  xrStarting=true;xrFrames=0;xrFailure='';xrPose=null;
   try{
     if(!window.isSecureContext||!navigator.xr){
       throw new Error('ouvre la page HTTPS directement dans le navigateur du Quest');
     }
-    const request=navigator.xr.requestSession('immersive-vr',{requiredFeatures:['local-floor']});
+    const request=navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});
     audioStart();
     const xr=await request;
-    try{await renderer.xr.setSession(xr);}
+    try{
+      const xrFloor=await xr.requestReferenceSpace('local-floor').then(()=>true,()=>false);
+      renderer.xr.setReferenceSpaceType(xrFloor?'local-floor':'local');
+      await renderer.xr.setSession(xr);
+      if(!xrFloor){
+        const space=renderer.xr.getReferenceSpace();
+        renderer.xr.setReferenceSpace(space.getOffsetReferenceSpace(new XRRigidTransform({x:0,y:-1.62,z:0})));
+      }
+    }
     catch(error){await xr.end().catch(()=>{});throw error;}
     document.body.classList.add('immersive');start();
   }catch(error){
     if(audio?.state==='running')audio.suspend().catch(()=>{});
     el('status').textContent='Impossible de lancer la VR · '+error.message;
     el('vr').disabled=false;
-  }
+  }finally{xrStarting=false;}
 };
 renderer.xr.addEventListener('sessionend',()=>{
+  const message=xrFailure||(xrFrames===0?'Session fermée avant la première image VR.':'Session VR fermée après '+xrFrames+' images.');
+  xrPose=null;
   document.body.classList.remove('immersive');el('vr').disabled=false;
   stop();resize();
+  if(!xrStarting)el('status').textContent=message;
 });
 el('start').disabled=false;
 el('status').textContent='Mode écran disponible. Vérification du casque…';
@@ -572,7 +593,7 @@ function syncWorld(peers,dt){
 }
 
 selectLevel(0);resetBody();
-renderer.setAnimationLoop(time=>{
+function drawFrame(time){
   const dt=Math.min(.05,Math.max(.001,(time-previousTime)/1000));previousTime=time;frameTime=time/1000;
   universeView();
   if(session.play){
@@ -626,4 +647,20 @@ renderer.setAnimationLoop(time=>{
     light.intensity=(session.scare?.intense?45:34)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
   });
   renderer.render(scene,view);
+}
+renderer.setAnimationLoop((time,frame)=>{
+  if(!renderer.xr.isPresenting){drawFrame(time);return;}
+  try{
+    const space=renderer.xr.getReferenceSpace();
+    const pose=space&&frame?.getViewerPose(space);
+    if(!pose?.views.length)return;
+    xrPose=pose.transform;
+    drawFrame(time);
+    xrFrames++;
+  }catch(error){
+    if(xrFailure)return;
+    xrFailure='Erreur VR après '+xrFrames+' images · '+(error.message||error);
+    console.error(xrFailure,error);
+    renderer.xr.getSession()?.end().catch(()=>{});
+  }
 });
