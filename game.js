@@ -1,5 +1,5 @@
 import * as T from './three.js';
-import {GorillaLocomotion} from './locomotion.js';
+import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=incubation1';
 import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=incubation1';
@@ -73,6 +73,8 @@ const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
 let audio,master,noise,creatureAudio;
 let grounded=true,touchCrouch=false;
+let stickAssist=true;
+const vrGrip={grip:5,slide:3,jump:5,weight:4};
 const hands=[0,1].map(index=>{
   const input=renderer.xr.getController(index),grip=renderer.xr.getControllerGrip(index);
   const mesh=new T.Mesh(new T.IcosahedronGeometry(.09,1),new T.MeshStandardMaterial({color:index?'#b47142':'#799178'}));
@@ -341,6 +343,7 @@ function removePeers(){
   peersUI.clear();
 }
 function start(){
+  stickAssist=el('vr-motion').value!=='arms';
   session.play=true;session.room=el('room').value;resetGame();
   menu.hidden=true;hud.hidden=false;
   audioStart();rooms.join(session.room);serverText='';
@@ -439,14 +442,24 @@ function updateBody(dt){
       locomotion.reset();
     }
     const axes=left?.source?.gamepad?.axes;
-    const horizontal=Math.abs(axes?.[2]??0)>.18?axes[2]:0;
-    const forward=Math.abs(axes?.[3]??0)>.18?axes[3]:0;
-    locomotion.move({head:eye,dt,gravity:13,settings:{grip:5,slide:3,jump:5,weight:4},boxes:station().solids,velocity,movement,reach:1.25});
+    const horizontal=stickAssist&&Math.abs(axes?.[2]??0)>.18?axes[2]:0;
+    const forward=stickAssist&&Math.abs(axes?.[3]??0)>.18?axes[3]:0;
+    locomotion.move({head:eye,dt,gravity:13,settings:vrGrip,boxes:station().solids,velocity,movement,reach:1.25});
+    for(const hand of hands){
+      const groundedPalm=Boolean(hand.surface);
+      if(groundedPalm&&!hand.touching){
+        hand.source?.gamepad?.hapticActuators?.[0]?.pulse?.(.2,32)?.catch?.(()=>{});
+      }
+      hand.touching=groundedPalm;
+    }
     ray.set(sight.x,0,sight.z).normalize();
     movement.x+=(ray.x*-forward-ray.z*horizontal)*dt*2.5;
     movement.z+=(ray.z*-forward+ray.x*horizontal)*dt*2.5;
     moveRig(movement.x,movement.y,movement.z);
-    locomotion.finish(bodyDelta,velocity);
+    const push=locomotion.finish(bodyDelta,velocity);
+    if(push.launched&&push.launchSpeed>2.5){
+      for(const hand of hands)if(hand.touching)hand.source?.gamepad?.hapticActuators?.[0]?.pulse?.(.37,46)?.catch?.(()=>{});
+    }
     session.run=Math.hypot(bodyDelta.x,bodyDelta.z)/dt>2.85;
   }else{
     view.rotation.set(pitch,yaw,0,'YXZ');

@@ -17,6 +17,7 @@
     <label for="room">Salon</label>
     <select id="room"><option value="">En solo</option><option value="1">Salon 1</option><option value="2">Salon 2</option><option value="3">Salon 3</option></select>
     <label for="volume">Volume</label><input id="volume" type="range" min="0" max="100" value="45">
+    <label for="vr-motion">Déplacement VR</label><select id="vr-motion"><option value="arms">Bras seuls</option><option value="assist" selected>Bras + stick</option></select>
     <label for="shock">Screamers</label><select id="shock"><option value="full">Intenses</option><option value="soft">Atténués</option></select>
   </div>
   <div class="actions"><button id="start" disabled>Jouer sur écran</button><button id="vr" disabled>Entrer en VR</button></div>
@@ -32,7 +33,7 @@
   <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button><button data-flat-action="jump">Sauter</button><button data-flat-action="crouch">S’accroupir</button></nav>
 </div>
 <script type="module">
-  import('./game.js?v=incubation1').catch(error=>{
+  import('./game.js?v=appuis1').catch(error=>{
     document.querySelector('#status').textContent='Le moteur 3D n’a pas pu se charger. Vérifie la connexion et recharge la page.';
     console.error(error);
   });

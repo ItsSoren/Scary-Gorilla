@@ -244,7 +244,9 @@ export class GorillaLocomotion {
       }
     }
     const {jump, weight} = this.settings;
-    if (this.average.lengthSq() < (1.05 + .04 * weight) ** 2) return result;
+    // Reduce the threshold on upward pushes only, so walking contacts stay quiet.
+    const minimum = this.average.y > .72 ? .84 + .04 * weight : 1.05 + .04 * weight;
+    if (this.average.lengthSq() < minimum ** 2) return result;
     velocity.copy(this.average).multiplyScalar((.93 + .15 * jump) / (.72 + .056 * weight));
     velocity.clampLength(0, 8.5 + .28 * jump);
     for (const state of this.hands) {
