@@ -1,7 +1,8 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bassin3';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=acoustique1';
+import {createGalleryAudio} from './gallery-audio.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
 import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker6';
@@ -32,6 +33,8 @@ const stations=levelNames.map((_,level)=>{
   return buildStation(group,level);
 });
 const gallery=createGallery(stations[0].scene);
+const galleryAudio=createGalleryAudio();
+const gallerySoundNames={pipe:'tuyauterie',metal:'métal',echo:'écho lointain'};
 const corridorLights=Array.from({length:2},()=>new T.PointLight('#ff9d66',17,8,2));
 scene.add(...corridorLights);
 const flashlight=new T.SpotLight('#d4fff0',41,14,.48,.52,1.7);
@@ -87,7 +90,7 @@ const rooms=createRooms(status=>{el('connection').textContent=status;if(!session
 const wrist=new T.Group();
 const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
-let nextDrip=0,nextPipe=0,immersion=0,wake=0;
+let nextDrip=0,immersion=0,wake=0;
 let audio,master,noise,creatureAudio,waterFilter;
 let grounded=true,touchCrouch=false;
 const extractionSeconds=8;
@@ -881,6 +884,7 @@ function drawFrame(time){
         'Sol : '+(galleryEnabled()&&galleryWet(eye.x,eye.z)?'inondé':'sec')+' · Fuite : '+(gallery.leak?'présente':'absente'),
         'Eau : '+(surface?Math.max(0,surface-galleryGround(eye.z)).toFixed(2)+' m':'hors bassin')+' · Vue sous l’eau : '+Math.round(immersion*100)+' %',
         'Acoustique : '+(waterFilter?Math.round(waterFilter.frequency.value)+' Hz':'audio inactif'),
+        'Dernier bruit : '+(galleryAudio.last?gallerySoundNames[galleryAudio.last.kind]+' · '+galleryAudio.last.distance.toFixed(1)+' m · '+(galleryAudio.last.clear?'direct':'derrière une paroi'):'—'),
         'Signalétique : '+(eye.z>=galleryStart?({numbered:'numérotée',sparse:'rare',none:'absente'})[sectorLayout(sectorIndex(eye.z)).markings]:'s.o.'),
         'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
       ].join('\n');
@@ -934,19 +938,7 @@ function drawFrame(time){
     }
     nextDrip=frameTime+.69+Math.sin(frameTime*7)**2*.31;
   }
-  if(outside&&frameTime>=nextPipe){
-    const source=gallery.lamps?.at(-1);
-    if(source){
-      const dx=source.x-eye.x,dz=source.z-eye.z,distance=Math.hypot(dx,dz);
-      const gain=.19*Math.max(0,1-distance/20)*(visibleBetween(eye,source)?1:.21);
-      if(gain>.004){
-        const pan=T.MathUtils.clamp((-dx*sight.z+dz*sight.x)/Math.max(1,distance),-1,1);
-        tone(174,81,.53,gain,'triangle',pan);
-        scrape(610,.43,gain*.53,pan);
-      }
-    }
-    nextPipe=frameTime+5.7+Math.sin(frameTime*1.35)**2*4.2;
-  }
+  galleryAudio.tick(frameTime,outside&&audio?.state==='running',gallery.sounds,eye,sight,visibleBetween,tone,scrape);
   el('floor').textContent=outside?(depth<3?'GALERIE '+(depth+1)+' · '+sectorLayout(depth).name:'GALERIE DE SERVICE'):
     (session.level+1)+' / 3 · '+levelNames[session.level];
   for(const position of (outside?gallery.lamps:undefined)??station().lighting){

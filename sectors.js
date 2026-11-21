@@ -1,6 +1,7 @@
 import * as T from './three.js';
 import {placard} from './station.js?v=bunker6';
 import {addCaustics,addConcreteWear,createWaterMaterial} from './gallery-water.js?v=bassin3';
+import {gallerySoundSources} from './gallery-audio.js';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;
@@ -89,7 +90,7 @@ export function createGallery(scene){
   particles.frustumCulled=false;
   particles.visible=false;
   scene.add(particles);
-  let collision=[],active=-1;
+  let collision=[],sounds=[],active=-1;
   function build(index){
     const group=new T.Group(),solids=[],lamps=[],parts=new Map([wall,floor,basin,ceiling,light,water,puddle,stain,pipe].map(material=>[material,[]]));
     let leak=null;
@@ -156,7 +157,8 @@ export function createGallery(scene){
       group.add(mesh);
     }
     scene.add(group);
-    return {group,solids,lamps,leak};
+    const soundSources=gallerySoundSources(rows,galleryStart+index*span,tile,hashOf(index,sectorSeed));
+    return {group,solids,lamps,leak,soundSources};
   }
   function update(z,enabled=true){
     const next=enabled&&z>galleryStart-12?Math.max(0,sectorIndex(z)):-1;
@@ -177,6 +179,7 @@ export function createGallery(scene){
       for(let i=Math.max(0,next-1);i<=next+1;i++)if(!cached.has(i))cached.set(i,build(i));
     }
     collision=Array.from(cached.values()).flatMap(sector=>sector.solids);
+    sounds=Array.from(cached.values()).flatMap(sector=>sector.soundSources);
   }
   function animate(time,enabled,head=null,immersion=0){
     const sector=enabled?cached.get(active):null,leak=sector?.leak;
@@ -217,5 +220,5 @@ export function createGallery(scene){
     water.uniforms.wake.value=wake;
   }
   return {update,animate,shade,get leak(){return cached.get(active)?.leak;},get particleCount(){return particles.visible?36:0;},
-    get collision(){return collision;},get lamps(){return cached.get(active)?.lamps;},get count(){return cached.size;}};
+    get collision(){return collision;},get sounds(){return sounds;},get lamps(){return cached.get(active)?.lamps;},get count(){return cached.size;}};
 }
