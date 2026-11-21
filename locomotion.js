@@ -109,9 +109,11 @@ export class GorillaLocomotion {
       let surface = this.sweep(state, this.from, this.to);
       if (priorActive) {
         const difference = this.correction.subVectors(target, hand.anchor);
-        const nearAnchor = difference.dot(normal) <= STICK_DISTANCE &&
+        const depth = difference.dot(normal);
+        const lateralDistanceSquared = difference.lengthSq() - depth ** 2;
+        const nearAnchor = depth <= STICK_DISTANCE &&
           hand.anchor.distanceToSquared(head) <= (reach + STICK_DISTANCE) ** 2 &&
-          difference.lengthSq() <= Math.max(.12, reach * .5) ** 2;
+          lateralDistanceSquared <= Math.max(.12, reach * .5) ** 2;
         if (nearAnchor && (!surface || (surface === previous && this.hitNormal.dot(normal) > .7))) {
           surface = previous;
           this.hit.copy(hand.anchor).add(offset);

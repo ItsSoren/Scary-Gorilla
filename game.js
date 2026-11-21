@@ -1,5 +1,5 @@
 import * as T from './three.js';
-import {GorillaLocomotion} from './locomotion.js?v=appuis1';
+import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=extraction1';
 import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=belier1';
@@ -105,10 +105,10 @@ function palmContact(from,to,rotation,solids,hit,normal){
   for(const wall of solids){
     expanded.copy(wall.bounds).expandByScalar(.059);
     if(expanded.distanceToPoint(from)>length)continue;
-    if(expanded.containsPoint(from)){
-      aux.copy(from);
-      if(expanded.containsPoint(to))aux.copy(to);
-    }else if(!segment.intersectBox(expanded,aux))continue;
+    const startedInside=expanded.containsPoint(from);
+    // Keep the entry face when a fast push drives a tracked palm through a thin ledge.
+    if(startedInside)aux.copy(from);
+    else if(!segment.intersectBox(expanded,aux))continue;
     const dist=from.distanceTo(aux);
     if(dist>=min)continue;
     const faces=[aux.x-expanded.min.x,expanded.max.x-aux.x,aux.y-expanded.min.y,expanded.max.y-aux.y,aux.z-expanded.min.z,expanded.max.z-aux.z];
@@ -121,7 +121,7 @@ function palmContact(from,to,rotation,solids,hit,normal){
     if(face===5)aux.z=expanded.max.z;
     const nx=face===0?-1:face===1?1:0,ny=face===2?-1:face===3?1:0,nz=face===4?-1:face===5?1:0;
     // A palm already inside a surface can leave it immediately.
-    if(expanded.containsPoint(from)&&segment.direction.x*nx+segment.direction.y*ny+segment.direction.z*nz>0)continue;
+    if(startedInside&&segment.direction.x*nx+segment.direction.y*ny+segment.direction.z*nz>0)continue;
     best=wall;min=dist;hit.copy(aux);normal.set(nx,ny,nz);
   }
   return best;
