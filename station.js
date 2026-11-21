@@ -15,7 +15,7 @@ export const cells = [
   '#.#....E#....C#',
   '#D#.###...#..X#',
   '#.............#',
-  '###############',
+  '#######G#######',
 ];
 export const levels=[
   cells,
@@ -71,7 +71,7 @@ export function inShelter(x,z,level){
 export function open(col,row,level=0) {const cell=levels[level][row]?.[col];return !!cell&&cell!=='#';}
 export function monsterOpen(col,row,level){
   const cell=levels[level][row]?.[col];
-  return open(col,row,level)&&cell!=='V'&&cell!=='T';
+  return open(col,row,level)&&cell!=='V'&&cell!=='T'&&cell!=='G';
 }
 export function passageAt(x,z,level){
   const [col,row]=cellOf(x,z,level);
@@ -491,6 +491,8 @@ export function buildStation(scene,level){
   solid(0,-.22,0,size*tile,.44,size*tile);
   const lighting=[];
   let updateExterior=null;
+  const galleryGate=level===0?piece(scene,box,paint('#46514c',.4),0,1.59,22.86,3.5,3.18,.21):null;
+  if(galleryGate)signAt(scene,'GALERIE DE SERVICE','#b1dccb',0,2.51,22.52,Math.PI);
   const furniture=(...args)=>fixtures.push(solid(...args));
   for(let row=0;row<size;row++)for(let col=0;col<size;col++){
     const {x,z}=point(col,row,0,level);
@@ -589,5 +591,5 @@ export function buildStation(scene,level){
   const liftSign=placard('ASCENSEUR · '+levelNames[level].toUpperCase());
   liftSign.position.copy(lift).add(new T.Vector3(0,2.26,-1.55));
   scene.add(liftSign);
-  return {solids,fixtures,lighting,ledColor,exit,lift,scene,cargo,updateExterior};
+  return {solids,fixtures,lighting,ledColor,exit,lift,scene,cargo,updateExterior,galleryGate};
 }

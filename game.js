@@ -1,9 +1,10 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
+import {createGallery,galleryOpen,galleryStart,sectorIndex,sectorLayout,sectorSeed} from './sectors.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
-import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker2';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker4';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -30,6 +31,7 @@ const stations=levelNames.map((_,level)=>{
   const group=new T.Group();scene.add(group);group.visible=level===0;
   return buildStation(group,level);
 });
+const gallery=createGallery(stations[0].scene);
 const corridorLights=Array.from({length:2},()=>new T.PointLight('#ff9d66',17,8,2));
 scene.add(...corridorLights);
 const flashlight=new T.SpotLight('#d4fff0',41,14,.48,.52,1.7);
@@ -70,6 +72,16 @@ const session={play:false,mask:0,won:false,scare:null,immunity:0,run:false,light
 const lure={until:0,x:0,z:0,level:0};
 const localBeacon={until:0,x:0,z:0,level:0};
 const station=()=>stations[session.level];
+const galleryEnabled=()=>expedition&&!session.room&&session.level===0;
+function walkable(x,z,r,level){
+  if(level!==0||z+r<22.75)return fits(x,z,r,level);
+  for(const sx of [x-r,x+r])for(const sz of [z-r,z+r]){
+    if(sz>=galleryStart){
+      if(!galleryEnabled()||!galleryOpen(sx,sz))return false;
+    }else if((sz>=22.75&&!galleryEnabled())||!fits(sx,sz,0,level))return false;
+  }
+  return true;
+}
 const seenBeacons=new Map();
 const rooms=createRooms(status=>{el('connection').textContent=status;if(!session.play)el('status').textContent=status;});
 const wrist=new T.Group();
@@ -155,7 +167,7 @@ function moveRig(dx,dy,dz){
   previous.copy(rig.position);
   const area=station();
   const height=T.MathUtils.clamp(eye.y-previous.y,.48,2.25);
-  const clear=(x,z)=>fits(x,z,.24,session.level)&&!area.fixtures.some(box=>
+  const clear=(x,z)=>walkable(x,z,.24,session.level)&&!area.fixtures.some(box=>
     overlapsBody(box,x,z)&&previous.y<box.max.y-.015&&previous.y+height+.075>box.min.y);
   if(clear(previous.x+offsetX+dx,previous.z+offsetZ))rig.position.x+=dx;
   if(clear(rig.position.x+offsetX,previous.z+offsetZ+dz))rig.position.z+=dz;
@@ -256,7 +268,7 @@ function release(hand){
   hand.held=null;item.owner=null;
   if(item.kind==='lamp')session.light=false;
   const dropX=item.mesh.position.x,dropZ=item.mesh.position.z;
-  if(fits(dropX,dropZ,.16,session.level)){
+  if(walkable(dropX,dropZ,.16,session.level)){
     item.level=session.level;
     item.mesh.position.y=.48;
   }else {
@@ -486,7 +498,9 @@ function updateBody(dt){
     const axes=left?.source?.gamepad?.axes;
     const horizontal=stickAssist&&Math.abs(axes?.[2]??0)>.18?axes[2]:0;
     const forward=stickAssist&&Math.abs(axes?.[3]??0)>.18?axes[3]:0;
-    locomotion.move({head:eye,dt,gravity:13,settings:vrGrip,boxes:station().solids,velocity,movement,reach:1.25});
+    const solids=station().solids;
+    const boxes=galleryEnabled()&&gallery.count?solids.concat(gallery.collision):solids;
+    locomotion.move({head:eye,dt,gravity:13,settings:vrGrip,boxes,velocity,movement,reach:1.25});
     for(const hand of hands){
       const groundedPalm=Boolean(hand.surface);
       if(groundedPalm&&!hand.touching){
@@ -538,7 +552,7 @@ function visibleBetween(from,to,level=session.level){
   const count=Math.max(1,Math.ceil(length/.4));
   for(let i=1;i<count;i++){
     const t=i/count,x=T.MathUtils.lerp(from.x,to.x,t),z=T.MathUtils.lerp(from.z,to.z,t);
-    if(!fits(x,z,.015,level))return false;
+    if(!walkable(x,z,.015,level))return false;
     const y=T.MathUtils.lerp(from.y||1.42,to.y||1.42,t);
     if(stations[level].fixtures.some(({min,max})=>x>min.x&&x<max.x&&z>min.z&&z<max.z&&y>min.y&&y<max.y))return false;
   }
@@ -805,9 +819,12 @@ function tickExtraction(dt){
 function drawFrame(time){
   const dt=Math.min(.05,Math.max(.001,(time-previousTime)/1000));previousTime=time;frameTime=time/1000;
   universeView();
+  gallery.update(eye.z,session.play&&galleryEnabled());
+  stations[0].galleryGate.visible=!(session.play&&galleryEnabled());
   if(session.play){
     const scared=scareTick();
     if(!scared&&!session.won)updateBody(dt);
+    gallery.update(eye.z,galleryEnabled());
     const peers=rooms.activePeers();
     syncWorld(peers,dt);
     updateHeld(dt);
@@ -827,6 +844,8 @@ function drawFrame(time){
         'Piles : '+supply.battery.toFixed(1)+' / '+batteryCapacity+' s',
         'Lampe : '+(flashlight.visible?'allumée':'éteinte')+' · Crédits : '+credits,
         'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
+        'Graine : '+sectorSeed+' · Secteurs chargés : '+gallery.count,
+        'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
       ].join('\n');
     }
     const remaining=tickExtraction(dt);
@@ -861,7 +880,10 @@ function drawFrame(time){
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
   }
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
-  for(const position of station().lighting){
+  const outside=galleryEnabled()&&eye.z>=galleryStart;
+  el('floor').textContent=outside?'GALERIE '+(sectorIndex(eye.z)+1)+' · '+sectorLayout(sectorIndex(eye.z)).name:
+    (session.level+1)+' / 3 · '+levelNames[session.level];
+  for(const position of (outside?gallery.lamps:undefined)??station().lighting){
     const distance=position.distanceToSquared(eye);
     if(distance<firstDistance){
       second=first;secondDistance=firstDistance;first=position;firstDistance=distance;
