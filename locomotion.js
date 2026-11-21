@@ -17,6 +17,7 @@ export class GorillaLocomotion {
         hand,
         previousPalm: new Vector3(), previousTarget: new Vector3(), offset: new Vector3(),
         normal: new Vector3(), localNormal: new Vector3(), localAnchor: new Vector3(),
+        releasePoint: new Vector3(), releaseNormal: new Vector3(),
         inverseRotation: hand.mesh.quaternion.clone(),
         released: null, releaseSurface: null, releaseTime: 0, tracked: false, eligible: false,
       };
@@ -31,6 +32,7 @@ export class GorillaLocomotion {
     this.hit = new Vector3();
     this.hitNormal = new Vector3();
     this.correction = new Vector3();
+    this.separation = new Vector3();
     this.slideTarget = new Vector3();
     this.downhill = new Vector3();
     this.handMotion = new Vector3();
@@ -59,9 +61,16 @@ export class GorillaLocomotion {
   sweep(state, from, to) {
     let boxes = this.boxes;
     if (state.releaseTime > 0 && boxes.includes(state.releaseSurface)) {
-      this.castBoxes.length = 0;
-      for (const box of boxes) if (box !== state.releaseSurface) this.castBoxes.push(box);
-      boxes = this.castBoxes;
+      // Let the launch leave its support, but rearm as soon as the palm clears it.
+      const gap = this.separation.subVectors(from, state.releasePoint).dot(state.releaseNormal);
+      if (gap > CONTACT_SKIN * 2) {
+        state.releaseTime = 0;
+        state.releaseSurface = null;
+      } else {
+        this.castBoxes.length = 0;
+        for (const box of boxes) if (box !== state.releaseSurface) this.castBoxes.push(box);
+        boxes = this.castBoxes;
+      }
     }
     return this.palmContact(from, to, state.hand.mesh.quaternion, boxes, this.hit, this.hitNormal);
   }
@@ -158,8 +167,10 @@ export class GorillaLocomotion {
         } else if (slip > .5 && correction.lengthSq() > STICK_DISTANCE ** 2) continue;
       }
       correction.subVectors(hand.anchor, target);
-      // Existing anchors support the palm when pressed, but lifting off does not pull the body toward the surface.
-      if (priorActive && correction.dot(normal) < 0) correction.addScaledVector(normal, -correction.dot(normal));
+      const separatingDepth = Math.max(0, -correction.dot(normal));
+      // Keep contact through tracking jitter, gradually letting the free hand move as it lifts.
+      const contactWeight = priorActive ? Math.max(0, 1 - separatingDepth / STICK_DISTANCE) : 1;
+      if (separatingDepth && priorActive) correction.addScaledVector(normal, separatingDepth).multiplyScalar(contactWeight);
       movement.add(correction);
       const body = surface.objectBody;
       if (body) {
@@ -173,7 +184,8 @@ export class GorillaLocomotion {
       if (state.tracked) {
         const intent = this.handMotion.subVectors(state.previousTarget, target);
         const push = intent.dot(normal);
-        intent.multiplyScalar(1 - slip).addScaledVector(normal, Math.max(0, push) - push * (1 - slip));
+        const traction = (1 - slip) * contactWeight;
+        intent.multiplyScalar(traction).addScaledVector(normal, Math.max(0, push) - push * traction);
         this.intent.add(intent);
       }
     }
@@ -256,6 +268,8 @@ export class GorillaLocomotion {
       if (!surface) continue;
       state.releaseSurface = surface;
       state.releaseTime = RELEASE_SECONDS;
+      state.releasePoint.copy(state.hand.anchor).add(state.offset);
+      state.releaseNormal.copy(state.normal);
       state.hand.surface = null;
       state.previousPalm.copy(state.previousTarget).add(state.offset);
     }

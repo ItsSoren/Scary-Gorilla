@@ -1,5 +1,5 @@
 import * as T from './three.js';
-import {GorillaLocomotion} from './locomotion.js?v=paume2';
+import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
 import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bassin1';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
@@ -20,7 +20,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.xr.enabled=true;
 renderer.xr.setReferenceSpaceType('local-floor');
 renderer.xr.setFramebufferScaleFactor?.(.8);
-let xrPose=null,xrFrames=0,xrFailure='',xrStarting=false;
+let xrPose=null,xrFrames=0,xrFailure='',xrStarting=false,xrLaunchSpeed=0;
 const xrHeading=new T.Quaternion();
 const view=new T.PerspectiveCamera(67,1,.06,45);
 const rig=new T.Group();
@@ -196,6 +196,7 @@ function resetBody(useLift=false){
   yaw=useLift?-Math.PI/2:Math.PI;pitch=0;
   view.rotation.set(pitch,yaw,0,'YXZ');
   velocity.set(0,0,0);grounded=true;touchCrouch=false;locomotion.reset();
+  xrLaunchSpeed=0;
 }
 function selectLevel(level){
   session.level=level;
@@ -531,6 +532,7 @@ function updateBody(dt){
     movement.z+=(ray.z*-forward+ray.x*horizontal)*dt*2.5;
     moveRig(movement.x,movement.y,movement.z);
     const push=locomotion.finish(bodyDelta,velocity);
+    if(push.launched)xrLaunchSpeed=push.launchSpeed;
     if(push.launched&&push.launchSpeed>2.5){
       for(const hand of hands)if(hand.touching)hand.source?.gamepad?.hapticActuators?.[0]?.pulse?.(.37,46)?.catch?.(()=>{});
     }
@@ -868,6 +870,13 @@ function drawFrame(time){
         'Piles : '+supply.battery.toFixed(1)+' / '+batteryCapacity+' s',
         'Lampe : '+(flashlight.visible?'allumée':'éteinte')+' · Crédits : '+credits,
         'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
+        ...(renderer.xr.isPresenting?[
+          'Mains : '+hands.map(hand=>{
+            const side=hand.source?.handedness==='left'?'G':hand.source?.handedness==='right'?'D':'—';
+            return side+' '+(hand.valid?(hand.surface?(hand.groundContact?'sol':'paroi'):'libre'):'non suivie');
+          }).join(' / '),
+          'Dernière poussée : '+xrLaunchSpeed.toFixed(2)+' m/s',
+        ]:[]),
         'Graine : '+sectorSeed+' · Secteurs chargés : '+gallery.count,
         'Sol : '+(galleryEnabled()&&galleryWet(eye.x,eye.z)?'inondé':'sec')+' · Fuite : '+(gallery.leak?'présente':'absente'),
         'Eau : '+(surface?Math.max(0,surface-galleryGround(eye.z)).toFixed(2)+' m':'hors bassin')+' · Vue sous l’eau : '+Math.round(immersion*100)+' %',
