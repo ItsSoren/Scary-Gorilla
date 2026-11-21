@@ -2,7 +2,7 @@ import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=extraction1';
-import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=belier1';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker1';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -689,13 +689,7 @@ function peerAvatars(peers,dt){
     ids.add(p.id);
     let avatar=peersUI.get(p.id);
     if(!avatar){
-      avatar=predator(1);
-      avatar.root.scale.setScalar(.69);
-      avatar.root.traverse(mesh=>{
-        if(mesh.isMesh&&mesh.material.isMeshStandardMaterial){
-          mesh.material=mesh.material.clone();mesh.material.color.set('#4f6672');
-        }
-      });
+      avatar=hazmatMonkey();
       scene.add(avatar.root);avatar.root.position.set(p.x,Math.max(0,p.y-1.6),p.z);
       peersUI.set(p.id,avatar);
     }
@@ -807,6 +801,7 @@ function drawFrame(time){
     light.color.set(safeLight?'#e1ffe1':station().ledColor);
     light.intensity=safeLight?66:(session.scare?.intense?45:34)+(Math.sin(frameTime*8+i)+Math.sin(frameTime*28-i))*.72;
   });
+  station().updateExterior?.(frameTime);
   renderer.render(scene,view);
 }
 renderer.setAnimationLoop((time,frame)=>{

@@ -336,9 +336,10 @@ function buildShelter(scene,lighting,furniture){
   piece(scene,box,glow,cargo.x,1.12,cargo.z,.86,.023,.56);
   signAt(scene,'DÉPÔT D’ÉCHANTILLONS','#b3ffbb',cargo.x,1.7,cargo.z+.55,Math.PI);
   const board=signAt(scene,'REFUGE 01 · STATION ÉCHO','#b3ffbb',start.x,2.2,start.z-1.62);
+  board.position.x+=2.35;
   board.scale.setScalar(2.35);
   for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  RÉCUPÈRE 3 CARTOUCHES','03  REJOINS LE SAS 04'].entries()){
-    signAt(scene,text,'#d8e9dc',start.x,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
+    signAt(scene,text,'#d8e9dc',start.x+2.35,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
   }
   const gate=where('S',0);gate.z+=tile*2.5;
   for(const side of [-1,1]){
@@ -351,6 +352,67 @@ function buildShelter(scene,lighting,furniture){
   piece(scene,box,new T.MeshStandardMaterial({map:hazardMap,roughness:.84}),gate.x,.012,gate.z,3.13,.018,.29);
   lighting.push(new T.Vector3(start.x,2.89,start.z+.5),new T.Vector3(cargo.x,2.85,cargo.z));
   return cargo;
+}
+export function hazmatMonkey(){
+  const root=new T.Group(),suit=paint('#b5a452'),rubber=paint('#283732'),glass=paint('#536f69',.48);
+  piece(root,muscle,suit,0,1.02,0,.43,.53,.29);
+  piece(root,muscle,suit,0,1.54,.04,.31,.34,.29);
+  piece(root,muscle,rubber,0,1.53,.248,.252,.213,.124);
+  piece(root,muscle,glass,0,1.55,.304,.215,.16,.096);
+  piece(root,muscle,rubber,0,1.43,.36,.135,.07,.065);
+  piece(root,box,rubber,0,1.05,.279,.025,.55,.02);
+  for(const side of [-1,1]){
+    piece(root,muscle,suit,side*.47,.91,.015,.15,.47,.156).rotation.z=side*.27;
+    piece(root,muscle,rubber,side*.575,.5,.06,.127,.144,.115);
+    piece(root,muscle,suit,side*.207,.4,0,.165,.37,.174);
+    piece(root,muscle,rubber,side*.21,.125,.082,.172,.12,.245);
+  }
+  return {root};
+}
+
+function rainyExterior(scene,x,z){
+  const steel=paint('#374440',.45),concrete=paint('#49534c');
+  piece(scene,box,concrete,x-.94,1.6,z,.78,3.2,3.5);
+  piece(scene,box,concrete,x+1.04,1.6,z,.73,3.2,3.5);
+  piece(scene,box,concrete,x,2.86,z,1.29,.68,3.5);
+  piece(scene,box,steel,x-.19,1.22,z+1.46,.94,2.44,.24).rotation.y=-.14;
+  piece(scene,box,steel,x+.12,1.06,z+1.62,.16,.065,.22);
+
+  const ground=paint('#283931',.4);ground.map=surfaceMap('wall');ground.roughness=.41;
+  piece(scene,box,ground,x,-.14,z-16,39,.25,32);
+  const puddle=paint('#627471',.64);puddle.roughness=.21;
+  piece(scene,muscle,puddle,x+.65,.003,z-4,1.6,.009,2.13);
+  piece(scene,box,new T.MeshBasicMaterial({color:'#647775'}),x,4,z-35,55,20,.1);
+  const crowns=new T.InstancedMesh(new T.ConeGeometry(1,1,6),new T.MeshBasicMaterial({color:'#ffffff'}),138);
+  const trunks=new T.InstancedMesh(box,new T.MeshBasicMaterial({color:'#354139'}),46);
+  const part=new T.Object3D();
+  for(let i=0;i<46;i++){
+    const tx=x+(grain(i,47)-.5)*36,tz=z-2.7-grain(i,83)*28,h=3.8+grain(i,9)*5.7;
+    if(Math.abs(tx-x)<1.6&&tz>z-8)part.position.set(tx+2.9,h*.32,tz);
+    else part.position.set(tx,h*.32,tz);
+    const px=part.position.x;
+    part.scale.set(.16,h*.69,.17);part.updateMatrix();trunks.setMatrixAt(i,part.matrix);
+    for(let j=0;j<3;j++){
+      part.position.set(px,h*(.43+j*.173),tz);
+      part.scale.set(h*(.22-j*.039),h*.52,h*(.22-j*.039));part.updateMatrix();
+      crowns.setMatrixAt(i*3+j,part.matrix);
+      crowns.setColorAt(i*3+j,new T.Color('#152a22').lerp(new T.Color('#70827a'),Math.min(.74,(z-tz)/42)));
+    }
+  }
+  scene.add(trunks,crowns);
+  const rain=new Float32Array(180*6),geometry=new T.BufferGeometry();
+  const attribute=new T.BufferAttribute(rain,3).setUsage(T.DynamicDrawUsage);
+  geometry.setAttribute('position',attribute);
+  const streaks=new T.LineSegments(geometry,new T.LineBasicMaterial({color:'#b6d2cc',transparent:true,opacity:.44,depthWrite:false}));
+  streaks.frustumCulled=false;scene.add(streaks);
+  return time=>{
+    for(let i=0;i<180;i++){
+      const y=((grain(i,122)*5-time*(4+grain(i,113)*4))%5+5)%5;
+      const rx=x+(grain(i,123)-.5)*10+y*.09,rz=z-1.8-grain(i,124)*13;
+      rain.set([rx,y,rz,rx-.024,y-.24,rz],i*6);
+    }
+    attribute.needsUpdate=true;
+  };
 }
 function buildSectorLandmark(scene,level,color){
   const origin=where('E',0,level),[col,row]=cellOf(origin.x,origin.z,level);
@@ -428,11 +490,17 @@ export function buildStation(scene,level){
   }
   solid(0,-.22,0,size*tile,.44,size*tile);
   const lighting=[];
+  let updateExterior=null;
   const furniture=(...args)=>fixtures.push(solid(...args));
   for(let row=0;row<size;row++)for(let col=0;col<size;col++){
     const {x,z}=point(col,row,0,level);
     if(!open(col,row,level)){
       if(!neighbors.some(([dx,dz])=>open(col+dx,row+dz,level)))continue;
+      if(level===0&&row===0&&col===3){
+        updateExterior=rainyExterior(scene,x,z);
+        solid(x,1.6,z,tile,3.2,tile);
+        continue;
+      }
       batch('wall',x,1.6,z,tile,3.2,tile);
       batch('trim',x,.37,z,tile+.014,.12,tile+.014);
       batch('trim',x,2.65,z,tile+.015,.09,tile+.015);
@@ -512,5 +580,5 @@ export function buildStation(scene,level){
   const liftSign=placard('ASCENSEUR · '+levelNames[level].toUpperCase());
   liftSign.position.copy(lift).add(new T.Vector3(0,2.26,-1.55));
   scene.add(liftSign);
-  return {solids,fixtures,lighting,ledColor,exit,lift,scene,cargo};
+  return {solids,fixtures,lighting,ledColor,exit,lift,scene,cargo,updateExterior};
 }
