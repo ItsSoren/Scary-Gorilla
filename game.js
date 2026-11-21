@@ -1,10 +1,10 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryOpen,galleryStart,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bunker5';
+import {createGallery,galleryOpen,galleryStart,galleryWet,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bunker6';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
-import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker5';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker6';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -87,6 +87,7 @@ const rooms=createRooms(status=>{el('connection').textContent=status;if(!session
 const wrist=new T.Group();
 const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
+let nextDrip=0;
 let audio,master,noise,creatureAudio;
 let grounded=true,touchCrouch=false;
 const extractionSeconds=8;
@@ -163,6 +164,7 @@ function universeView(){
   view.getWorldPosition(eye);view.getWorldDirection(sight);
 }
 function moveRig(dx,dy,dz){
+  if(galleryEnabled()&&galleryWet(eye.x,eye.z)){dx*=.78;dz*=.78;}
   const offsetX=eye.x-rig.position.x,offsetZ=eye.z-rig.position.z;
   previous.copy(rig.position);
   const area=station();
@@ -540,11 +542,12 @@ function updateBody(dt){
   }
   rig.updateMatrixWorld(true);universeView();
   const grating=metalGrating(...cellOf(eye.x,eye.z,session.level),session.level);
+  const wet=galleryEnabled()&&galleryWet(eye.x,eye.z);
   if(grating&&Math.hypot(bodyDelta.x,bodyDelta.z)/dt>2.15)session.run=true;
   if((rig.position.distanceToSquared(groundRig)>dt*dt*.9)&&frameTime-lastAudioStep>(session.run?.28:.47)){
     lastAudioStep=frameTime;
-    tone(grating?560:135,grating?220:54,grating?.27:.19,session.run?.32:.22,'triangle');
-    scrape(grating?1700:640,.15,session.run?.22:.12,0);
+    tone(wet?290:grating?560:135,wet?72:grating?220:54,grating?.27:.19,session.run?.32:.22,'triangle');
+    scrape(wet?1190:grating?1700:640,wet?.24:.15,wet?.29:session.run?.22:.12,0);
   }
 }
 function visibleBetween(from,to,level=session.level){
@@ -845,6 +848,7 @@ function drawFrame(time){
         'Lampe : '+(flashlight.visible?'allumée':'éteinte')+' · Crédits : '+credits,
         'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
         'Graine : '+sectorSeed+' · Secteurs chargés : '+gallery.count,
+        'Sol : '+(galleryEnabled()&&galleryWet(eye.x,eye.z)?'inondé':'sec')+' · Fuite : '+(gallery.leak?'présente':'absente'),
         'Signalétique : '+(eye.z>=galleryStart?({numbered:'numérotée',sparse:'rare',none:'absente'})[sectorLayout(sectorIndex(eye.z)).markings]:'s.o.'),
         'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
       ].join('\n');
@@ -883,6 +887,17 @@ function drawFrame(time){
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
   const outside=galleryEnabled()&&eye.z>=galleryStart;
   const depth=outside?sectorIndex(eye.z):-1;
+  gallery.animate(frameTime,outside&&session.play);
+  const leak=outside?gallery.leak:null;
+  if(leak&&session.play&&frameTime>=nextDrip){
+    const dx=leak.x-eye.x,dz=leak.z-eye.z;
+    const distance=Math.hypot(dx,dz);
+    if(distance<12){
+      const pan=T.MathUtils.clamp((-dx*sight.z+dz*sight.x)/Math.max(1,distance),-1,1);
+      tone(590,260,.115,.16*(1-distance/12),'sine',pan);
+    }
+    nextDrip=frameTime+.69+Math.sin(frameTime*7)**2*.31;
+  }
   el('floor').textContent=outside?(depth<3?'GALERIE '+(depth+1)+' · '+sectorLayout(depth).name:'GALERIE DE SERVICE'):
     (session.level+1)+' / 3 · '+levelNames[session.level];
   for(const position of (outside?gallery.lamps:undefined)??station().lighting){

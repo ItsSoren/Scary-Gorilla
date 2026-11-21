@@ -336,8 +336,8 @@ function buildShelter(scene,lighting,furniture){
   piece(scene,box,glow,cargo.x,1.12,cargo.z,.86,.023,.56);
   signAt(scene,'DÉPÔT D’ÉCHANTILLONS','#b3ffbb',cargo.x,1.7,cargo.z+.55,Math.PI);
   const board=signAt(scene,'REFUGE 01 · STATION ÉCHO','#b3ffbb',start.x,2.2,start.z-1.62);
-  board.position.x+=2.35;
-  board.scale.setScalar(2.35);
+  board.position.x+=2.43;
+  board.scale.setScalar(.91);
   for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  EXPLORE LES NIVEAUX','03  DÉPÔT AU COMPTOIR'].entries()){
     signAt(scene,text,'#d8e9dc',start.x+2.35,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
   }

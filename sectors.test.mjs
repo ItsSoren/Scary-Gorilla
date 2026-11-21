@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Group} from './three.js';
-import {createGallery,galleryOpen,galleryStart,sectorIndex,sectorLayout} from './sectors.js';
+import {createGallery,galleryOpen,galleryStart,galleryWet,sectorIndex,sectorLayout} from './sectors.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){},strokeRect(){},fillText(){}})})};
 
 test('Sector layouts are repeatable and the main passage stays connected',()=>{
@@ -37,11 +37,29 @@ test('Streaming retains at most three sectors and reloads the same collision lay
   for(let n=1;n<20;n++){
     gallery.update(galleryStart+n*31.5+1);
     assert.equal(gallery.count,3);
-    assert.equal(scene.children.length,3);
+    assert.equal(scene.children.length,4);
   }
   gallery.update(galleryStart+1);
   assert.deepEqual(gallery.collision.map(box=>box.bounds.min.toArray()),first);
   gallery.update(0,false);
-  assert.equal(scene.children.length,0);
+  assert.equal(scene.children.length,1);
   assert.equal(gallery.collision.length,0);
+});
+
+test('Water stays on walkable cells and particles switch off outside the gallery',()=>{
+  const scene=new Group(),gallery=createGallery(scene);
+  const z=galleryStart+3.5*4.5;
+  assert.equal(galleryWet(0,z),true);
+  assert.equal(galleryWet(14,z),false);
+  assert.equal(galleryWet(0,galleryStart+31.5+3.5*4.5),false);
+  gallery.update(z);
+  assert.ok(gallery.leak);
+  gallery.animate(1,true);
+  assert.equal(gallery.particleCount,36);
+  gallery.update(z+31.5);
+  gallery.animate(2,true);
+  assert.equal(gallery.leak,null);
+  assert.equal(gallery.particleCount,36);
+  gallery.animate(2,false);
+  assert.equal(gallery.particleCount,0);
 });
