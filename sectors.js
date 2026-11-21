@@ -2,6 +2,7 @@ import * as T from './three.js';
 import {placard} from './station.js?v=bunker6';
 import {addCaustics,addConcreteWear,createWaterMaterial} from './gallery-water.js?v=bassin3';
 import {gallerySoundSources} from './gallery-audio.js';
+import {archiveSheet,archiveSite} from './gallery-archives.js';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;
@@ -80,7 +81,8 @@ export function createGallery(scene){
     light=new T.MeshBasicMaterial({color:'#a7c5b5'}),
     stain=new T.MeshStandardMaterial({color:'#5b4537',roughness:.95}),
     pipe=new T.MeshStandardMaterial({color:'#765747',roughness:.74,metalness:.33}),
-    basin=new T.MeshStandardMaterial({color:'#293d36',roughness:.79});
+    basin=new T.MeshStandardMaterial({color:'#293d36',roughness:.79}),
+    cabinet=new T.MeshStandardMaterial({color:'#4a5145',roughness:.78,metalness:.21});
   addCaustics(basin,water.uniforms.time);
   addConcreteWear(wall);
   const drops=new Float32Array(36*3),dropGeometry=new T.BufferGeometry();
@@ -92,15 +94,31 @@ export function createGallery(scene){
   scene.add(particles);
   let collision=[],sounds=[],active=-1;
   function build(index){
-    const group=new T.Group(),solids=[],lamps=[],parts=new Map([wall,floor,basin,ceiling,light,water,puddle,stain,pipe].map(material=>[material,[]]));
+    const group=new T.Group(),solids=[],lamps=[],parts=new Map([wall,floor,basin,ceiling,light,water,puddle,stain,pipe,cabinet].map(material=>[material,[]]));
     let leak=null;
     const {rows,markings}=sectorLayout(index);
     const basinStart=floodStart(index);
     const lampColumns=rows.map(row=>[4,3,5,2,6,1,7].find(col=>row[col]==='.'));
     function block(material,x,y,z,w,h,d){
       parts.get(material).push([x,y,z,w,h,d]);
-      if(material===light||material===water||material===puddle||material===stain||material===pipe)return;
+      if(material===light||material===water||material===puddle||material===stain||material===pipe||material===cabinet)return;
       solids.push({bounds:new T.Box3(new T.Vector3(x-w/2,y-h/2,z-d/2),new T.Vector3(x+w/2,y+h/2,z+d/2)),friction:.88});
+    }
+    const base=galleryStart+index*span,seed=hashOf(index,sectorSeed);
+    const site=archiveSite(index,rows,seed,(row,col)=>{
+      const z=base+(row+.5)*tile;
+      return row!==basinStart&&row!==basinStart+3&&galleryGround(z)===0&&!galleryWet((col-4)*tile,z);
+    });
+    if(site){
+      const wallX=(site.col-4)*tile+site.side*tile/2,z=base+(site.row+.5)*tile;
+      const sheet=archiveSheet(site.record);
+      sheet.position.set(wallX-site.side*.025,1.51,z+.19);
+      sheet.rotation.y=-site.side*Math.PI/2;
+      group.add(sheet);
+      block(cabinet,wallX-site.side*.14,.43,z,.28,.86,1.33);
+      block(pipe,wallX-site.side*.287,.56,z,.03,.035,.61);
+      block(pipe,wallX-site.side*.287,.27,z,.03,.035,.61);
+      block(stain,wallX-site.side*.55,.01,z-.47,.41,.01,.63);
     }
     for(let row=0;row<width;row++)for(let col=0;col<width;col++){
       const x=(col-4)*tile,z=galleryStart+index*span+(row+.5)*tile;
@@ -157,8 +175,8 @@ export function createGallery(scene){
       group.add(mesh);
     }
     scene.add(group);
-    const soundSources=gallerySoundSources(rows,galleryStart+index*span,tile,hashOf(index,sectorSeed));
-    return {group,solids,lamps,leak,soundSources};
+    const soundSources=gallerySoundSources(rows,base,tile,seed);
+    return {group,solids,lamps,leak,soundSources,archive:Boolean(site)};
   }
   function update(z,enabled=true){
     const next=enabled&&z>galleryStart-12?Math.max(0,sectorIndex(z)):-1;
@@ -220,5 +238,6 @@ export function createGallery(scene){
     water.uniforms.wake.value=wake;
   }
   return {update,animate,shade,get leak(){return cached.get(active)?.leak;},get particleCount(){return particles.visible?36:0;},
-    get collision(){return collision;},get sounds(){return sounds;},get lamps(){return cached.get(active)?.lamps;},get count(){return cached.size;}};
+    get collision(){return collision;},get sounds(){return sounds;},get archive(){return cached.get(active)?.archive??false;},
+    get lamps(){return cached.get(active)?.lamps;},get count(){return cached.size;}};
 }

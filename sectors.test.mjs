@@ -96,3 +96,17 @@ test('Pump basin has two walkable stairs and a continuous submerged floor',()=>{
   }
   assert.equal(galleryGround(galleryStart+3.5*7.1),0);
 });
+
+test('Early galleries carry dry wall archives and later galleries leave gaps',()=>{
+  const scene=new Group(),gallery=createGallery(scene);
+  let laterArchives=0;
+  for(let index=0;index<40;index++){
+    gallery.update(galleryStart+index*31.5+1);
+    if(index<3)assert.equal(gallery.archive,true);
+    else if(gallery.archive)laterArchives++;
+  }
+  assert.ok(laterArchives>0&&laterArchives<20);
+  gallery.update(0,false);
+  assert.equal(gallery.archive,false);
+  assert.equal(scene.children.length,1);
+});

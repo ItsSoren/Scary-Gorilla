@@ -1,7 +1,7 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=acoustique1';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=archives1';
 import {createGalleryAudio} from './gallery-audio.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
@@ -884,6 +884,7 @@ function drawFrame(time){
         'Sol : '+(galleryEnabled()&&galleryWet(eye.x,eye.z)?'inondé':'sec')+' · Fuite : '+(gallery.leak?'présente':'absente'),
         'Eau : '+(surface?Math.max(0,surface-galleryGround(eye.z)).toFixed(2)+' m':'hors bassin')+' · Vue sous l’eau : '+Math.round(immersion*100)+' %',
         'Acoustique : '+(waterFilter?Math.round(waterFilter.frequency.value)+' Hz':'audio inactif'),
+        'Archive locale : '+(galleryEnabled()&&eye.z>=galleryStart&&gallery.archive?'présente':'—'),
         'Dernier bruit : '+(galleryAudio.last?gallerySoundNames[galleryAudio.last.kind]+' · '+galleryAudio.last.distance.toFixed(1)+' m · '+(galleryAudio.last.clear?'direct':'derrière une paroi'):'—'),
         'Signalétique : '+(eye.z>=galleryStart?({numbered:'numérotée',sparse:'rare',none:'absente'})[sectorLayout(sectorIndex(eye.z)).markings]:'s.o.'),
         'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
