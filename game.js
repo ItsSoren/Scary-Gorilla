@@ -1,7 +1,8 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=archives1';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed,vistaEntry} from './sectors.js?v=belvedere1';
+import {vistaSector} from './gallery-vista.js';
 import {createGalleryAudio} from './gallery-audio.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
@@ -427,15 +428,17 @@ function stop(){
 }
 el('back').onclick=stop;
 el('start').onclick=start;
-el('debug-pool').onclick=()=>{
+function debugPosition(x,z,angle,tilt){
   if(!session.play||!galleryEnabled()||renderer.xr.isPresenting)return;
-  rig.position.set(0,0,poolEntry);
-  yaw=Math.PI;pitch=-.12;view.rotation.set(pitch,yaw,0,'YXZ');
+  rig.position.set(x,0,z);
+  yaw=angle;pitch=tilt;view.rotation.set(pitch,yaw,0,'YXZ');
   velocity.set(0,0,0);
   touchCrouch=false;
   grounded=true;
   universeView();
-};
+}
+el('debug-pool').onclick=()=>debugPosition(0,poolEntry,Math.PI,-.12);
+el('debug-vista').onclick=()=>debugPosition(10.1,vistaEntry,-Math.PI/2,.14);
 el('volume').oninput=()=>{if(master)master.gain.value=Number(el('volume').value)*.0034;};
 el('audio-test').onclick=()=>{
   audioStart();
@@ -926,6 +929,11 @@ function drawFrame(time){
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
   const outside=session.play&&galleryEnabled()&&eye.z>=galleryStart;
   const depth=outside?sectorIndex(eye.z):-1;
+  const far=depth===vistaSector?155:45;
+  if(view.far!==far){
+    view.far=far;
+    view.updateProjectionMatrix();
+  }
   gallery.animate(frameTime,outside,eye,immersion);
   const leak=outside?gallery.leak:null;
   if(leak&&session.play&&frameTime>=nextDrip){

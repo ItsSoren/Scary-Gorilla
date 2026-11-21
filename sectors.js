@@ -3,11 +3,13 @@ import {placard} from './station.js?v=bunker6';
 import {addCaustics,addConcreteWear,createWaterMaterial} from './gallery-water.js?v=bassin3';
 import {gallerySoundSources} from './gallery-audio.js';
 import {archiveSheet,archiveSite} from './gallery-archives.js';
+import {createVista,vistaRows,vistaSector} from './gallery-vista.js';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;
 const tile=3.5, width=9, span=width*tile;
 export const poolEntry=galleryStart+tile*2.85;
+export const vistaEntry=galleryStart+(vistaSector*width+4.5)*tile;
 export const poolSurface=-.12;
 const poolBottom=poolSurface-1.20, stepLength=tile/6;
 const hashOf=(index,seed)=>{
@@ -123,6 +125,12 @@ export function createGallery(scene){
     for(let row=0;row<width;row++)for(let col=0;col<width;col++){
       const x=(col-4)*tile,z=galleryStart+index*span+(row+.5)*tile;
       if(rows[row][col]==='#'){
+        if(index===vistaSector&&col===8&&vistaRows.includes(row)){
+          block(wall,x,.42,z,tile,.84,tile);
+          block(wall,x,2.97,z,tile,.46,tile);
+          block(wall,x-tile/2+.11,1.79,z-tile/2,.22,1.9,.14);
+          continue;
+        }
         const base=basinStart>=0&&row>=basinStart&&row<basinStart+4?poolBottom:0;
         block(wall,x,(3.2+base)/2,z,tile,3.2-base,tile);
       }else{
@@ -174,9 +182,11 @@ export function createGallery(scene){
       });
       group.add(mesh);
     }
+    const vista=index===vistaSector?createVista(vistaEntry):[];
+    for(const mesh of vista)group.add(mesh);
     scene.add(group);
     const soundSources=gallerySoundSources(rows,base,tile,seed);
-    return {group,solids,lamps,leak,soundSources,archive:Boolean(site)};
+    return {group,solids,lamps,leak,soundSources,archive:Boolean(site),vista};
   }
   function update(z,enabled=true){
     const next=enabled&&z>galleryStart-12?Math.max(0,sectorIndex(z)):-1;
@@ -190,6 +200,10 @@ export function createGallery(scene){
         else{
           mesh.geometry.dispose();mesh.material.map.dispose();mesh.material.dispose();
         }
+      }
+      if(sector.vista.length){
+        sector.vista[0].geometry.dispose();
+        for(const mesh of sector.vista)mesh.material.dispose();
       }
       cached.delete(key);
     }
