@@ -1,14 +1,14 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed,vistaEntry} from './sectors.js?v=belvedere1';
-import {vistaSector} from './gallery-vista.js';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed,vistaEntry} from './sectors.js?v=service1';
+import {vistaSector} from './gallery-vista.js?v=service1';
 import {createGalleryAudio} from './gallery-audio.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
-import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker6';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=service1';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
-import {createCreatureAudio} from './creature-audio.js?v=attaques1';
+import {createCreatureAudio} from './creature-audio.js?v=service1';
 
 const el=id=>document.getElementById(id);
 const canvas=el('game'),menu=el('menu'),hud=el('hud');
@@ -240,7 +240,13 @@ function audioStart(){
       waterFilter.type='lowpass';
       waterFilter.frequency.value=20000;
       waterFilter.Q.value=.1;
-      master.connect(waterFilter).connect(audio.destination);
+      const limiter=audio.createDynamicsCompressor();
+      limiter.threshold.value=-5;
+      limiter.knee.value=3;
+      limiter.ratio.value=18;
+      limiter.attack.value=.002;
+      limiter.release.value=.11;
+      master.connect(waterFilter).connect(limiter).connect(audio.destination);
       creatureAudio=createCreatureAudio(audio,master);
       const hum=audio.createOscillator(),volume=audio.createGain();
       hum.type='triangle';hum.frequency.value=112;volume.gain.value=.13;
@@ -588,9 +594,9 @@ function visibleBetween(from,to,level=session.level){
   return true;
 }
 const attackProfiles=[
-  {duration:1.22,windup:.16,impact:.31,near:.74,far:1.62,tilt:.09,reach:.9,noise:460,rate:.84},
-  {duration:1.14,windup:.24,impact:.46,near:.82,far:1.45,tilt:.37,reach:.43,noise:2480,rate:1.12},
-  {duration:1.02,windup:.10,impact:.25,near:.76,far:1.55,tilt:.21,reach:1.05,noise:1620,rate:1},
+  {duration:1.22,windup:.13,impact:.28,near:.58,far:1.62,tilt:.13,reach:1.1,noise:460,rate:.84},
+  {duration:1.14,windup:.20,impact:.37,near:.64,far:1.45,tilt:.42,reach:.69,noise:2480,rate:1.12},
+  {duration:1.02,windup:.08,impact:.22,near:.60,far:1.55,tilt:.27,reach:1.22,noise:1620,rate:1},
 ];
 function makeScare(index){
   fieldLight.extinguish();
@@ -637,7 +643,7 @@ function scareTick(){
     const sinceImpact=Math.max(0,elapsed-profile.impact);
     const recoil=(1-Math.exp(-sinceImpact*8))*.15;
     const side=index===1?.52*(1-lunge)*windup:index===2?Math.sin(elapsed*21)*.11*(1-lunge):0;
-    scare.root.position.copy(eye).addScaledVector(scare.direction,(intense?profile.far:1.65)+(profile.near-(intense?profile.far:1.65))*lunge*(intense?1:.44)+recoil);
+    scare.root.position.copy(eye).addScaledVector(scare.direction,(intense?profile.far:1.65)+((intense?profile.near:.8)-(intense?profile.far:1.65))*lunge*(intense?1:.44)+recoil);
     scare.root.position.x-=scare.direction.z*side;scare.root.position.z+=scare.direction.x*side;
     scare.root.position.y=eye.y-1.78*scare.height-(index===2?.37:0)*(1-lunge);
     scare.body.rotation.x=(index===0?-.23:.12)*windup*(1-lunge)+.16*lunge;
@@ -646,7 +652,7 @@ function scareTick(){
     scare.arms.forEach((arm,i)=>{arm.rotation.x=-profile.reach*lunge*(index===1&&i===0?.32:1);});
     if(elapsed>=profile.impact&&!scare.impacted){
       scare.impacted=true;
-      creatureAudio?.play(index,true,intense?1.08:.31,0,false,profile.rate);
+      creatureAudio?.scream(index,intense?1.08*3:.31,profile.rate);
       tone([130,515,230][index],[37,170,64][index],.29,intense?.24:.06,'triangle');
       if(intense)scrape(profile.noise,index===0?.42:.32,.53,0);
     }

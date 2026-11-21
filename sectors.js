@@ -1,9 +1,9 @@
 import * as T from './three.js';
-import {placard} from './station.js?v=bunker6';
+import {placard} from './station.js?v=service1';
 import {addCaustics,addConcreteWear,createWaterMaterial} from './gallery-water.js?v=bassin3';
 import {gallerySoundSources} from './gallery-audio.js';
 import {archiveSheet,archiveSite} from './gallery-archives.js';
-import {createVista,vistaRows,vistaSector} from './gallery-vista.js';
+import {createVista,vistaRows,vistaSector} from './gallery-vista.js?v=service1';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;
@@ -107,6 +107,26 @@ export function createGallery(scene){
       solids.push({bounds:new T.Box3(new T.Vector3(x-w/2,y-h/2,z-d/2),new T.Vector3(x+w/2,y+h/2,z+d/2)),friction:.88});
     }
     const base=galleryStart+index*span,seed=hashOf(index,sectorSeed);
+    if(index===vistaSector){
+      const z=vistaEntry;
+      // An open pressure bulkhead frames the access without narrowing the walkable lane.
+      block(cabinet,6.1,2.89,z,.4,.43,3.36);
+      for(const side of [-1,1]){
+        block(cabinet,6.1,1.44,z+side*1.55,.4,2.88,.31);
+        block(pipe,4.7,2.72,z+side*1.38,4.8,.21,.22);
+        block(cabinet,4.7,2.72,z+side*1.38,.22,.34,.34);
+        block(pipe,6.49,.94,z+side*1.61,.45,.2,.17);
+      }
+      for(let stripe=0;stripe<7;stripe++){
+        block(stripe%2?wall:pipe,6.1,.008,z+(stripe-3)*.42,.39,.012,.37);
+      }
+      const tag=placard('SAS 04 · SERVICE','#ceab72');
+      tag.position.set(5.88,2.9,z);
+      tag.rotation.y=-Math.PI/2;
+      tag.scale.setScalar(.61);
+      group.add(tag);
+      lamps.push(new T.Vector3(6.0,2.81,z));
+    }
     const site=archiveSite(index,rows,seed,(row,col)=>{
       const z=base+(row+.5)*tile;
       return row!==basinStart&&row!==basinStart+3&&galleryGround(z)===0&&!galleryWet((col-4)*tile,z);

@@ -328,7 +328,7 @@ function buildShelter(scene,lighting,furniture){
     piece(scene,box,shell,x,.87,z,.73,.09,.65);
     furniture(x,.45,z,.73,.9,.65);
     piece(scene,box,glow,x,.56,z-.3,.48,.029,.018);
-    signAt(scene,side<0?'LAMPE':'BALISE','#d7efe1',x,1.33,z+.34,Math.PI).scale.setScalar(.42);
+    signAt(scene,side<0?'LAMPE':'BALISE','#d7efe1',x,.69,z+.331).scale.setScalar(.4);
   }
   piece(scene,box,casing,cargo.x,.53,cargo.z,1.44,1.06,1.06);
   piece(scene,box,shell,cargo.x,1.07,cargo.z,1.56,.08,1.12);
@@ -339,7 +339,7 @@ function buildShelter(scene,lighting,furniture){
   board.position.x+=2.43;
   board.scale.setScalar(.91);
   for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  EXPLORE LES NIVEAUX','03  DÉPÔT AU COMPTOIR'].entries()){
-    signAt(scene,text,'#d8e9dc',start.x+2.35,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
+    signAt(scene,text,'#d8e9dc',start.x+2.35,1.78-i*.43,start.z-1.60).scale.setScalar(.95);
   }
   const gate=where('S',0);gate.z+=tile*2.5;
   for(const side of [-1,1]){

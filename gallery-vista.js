@@ -15,6 +15,17 @@ export function createVista(z){
   box('#68747a',71,-15,0,108,1,145);
   box('#4d595f',46,-8,0,55,2,94);
   box('#313b42',22,-3.6,0,15,1.2,38);
+  // The same service levels recur below the observation slit.
+  for(let level=0;level<8;level++){
+    const y=-1.6-level*4.8;
+    box('#414d53',35,y,1,37,.36,1.8);
+    box('#26353d',20,y+.58,1,.18,.12,1.9);
+    box('#b68f76',21,y+.29,1,.12,.12,.17);
+  }
+  for(const offset of [-6,6]){
+    box('#222e36',23,-18,offset,2.2,43,2.1);
+    box('#45515a',21.8,-18,offset,.14,43,.24);
+  }
   for(const [x,offset,width,height,color] of [
     [35,-18,12,48,'#242e37'],[51,9,15,66,'#35414a'],
     [69,-12,17,79,'#4a565e'],[94,22,23,93,'#657178'],

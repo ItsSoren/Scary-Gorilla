@@ -4,15 +4,21 @@ const voices=[
   {pitch:112,length:.94,formants:[350,1040,2080],breath:.48},
 ];
 const rates=[24000,24000,24000];
+const shrieks=[
+  {pitch:555,sweep:360,ring:1840,tremolo:33},
+  {pitch:1080,sweep:570,ring:2890,tremolo:17},
+  {pitch:780,sweep:465,ring:2350,tremolo:49},
+];
 
-function voiceClip(audio,type,attack){
+function voiceClip(audio,type,attack,scream){
   const profile=voices[type],rate=rates[type],length=attack?profile.length*.78:profile.length;
+  const shriek=shrieks[type];
   const buffer=audio.createBuffer(1,Math.round(rate*length),rate),out=buffer.getChannelData(0);
   const filters=profile.formants.map((hz,i)=>{
     const decay=Math.exp(-Math.PI*(120+i*81)/rate);
     return {a:2*decay*Math.cos(2*Math.PI*hz/rate),b:decay*decay,dry:1-decay,prev:0,last:0};
   });
-  let seed=15317+type*439,phase=0,noise=0,max=.01;
+  let seed=15317+type*439,phase=0,screamPhase=0,noise=0,max=.01;
   for(let i=0;i<out.length;i++){
     const t=i/rate,p=t/length;
     seed=(Math.imul(seed,1664525)+1013904223)>>>0;
@@ -29,7 +35,15 @@ function voiceClip(audio,type,attack){
       filter.prev=filter.last;filter.last=next;resonances+=next;
     }
     const edge=Math.min(1,p*(attack?25:7),(1-p)*6);
-    const sound=Math.tanh(resonances*.8+pulse*.22+noise*.68)*Math.max(0,edge)*flutter;
+    let signal=resonances*.8+pulse*.22+noise*.68;
+    if(scream){
+      const bend=type===1?Math.sin(p*Math.PI):1-p;
+      screamPhase+=(shriek.pitch+shriek.sweep*bend+Math.sin(t*57)*28)/rate;
+      const grit=.62+.38*Math.sin(t*shriek.tremolo)**2;
+      signal=signal*.62+grit*(Math.sin(2*Math.PI*screamPhase)*.62+
+        Math.sin(2*Math.PI*shriek.ring*t)*.19+(white-noise)*.31);
+    }
+    const sound=Math.tanh(signal)*Math.max(0,edge)*flutter;
     out[i]=sound;max=Math.max(max,Math.abs(sound));
   }
   for(let i=0;i<out.length;i++)out[i]*=.85/max;
@@ -37,10 +51,10 @@ function voiceClip(audio,type,attack){
 }
 export function createCreatureAudio(audio,output){
   const cache=new Map();
-  function play(type,attack,gain,pan,occluded,attackRate=1){
+  function play(type,attack,gain,pan,occluded,attackRate=1,scream=false){
     if(audio.state!=='running'||gain<=0)return;
-    const key=type*2+Number(attack);
-    if(!cache.has(key))cache.set(key,voiceClip(audio,type,attack));
+    const key=type*3+(scream?2:Number(attack));
+    if(!cache.has(key))cache.set(key,voiceClip(audio,type,attack,scream));
     const node=audio.createBufferSource(),amp=audio.createGain();
     node.buffer=cache.get(key);amp.gain.value=gain;
     node.playbackRate.value=attack?attackRate:.94+Math.random()*.12;
@@ -55,5 +69,5 @@ export function createCreatureAudio(audio,output){
     tail.connect(output);
     node.start();
   }
-  return {play};
+  return {play,scream:(type,gain,rate)=>play(type,true,gain,0,false,rate,true)};
 }
