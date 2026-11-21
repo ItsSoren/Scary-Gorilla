@@ -1,8 +1,8 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
-import {createRooms} from './rooms.js?v=extraction1';
-import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker1';
+import {createRooms} from './rooms.js?v=bunker2';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker2';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -52,7 +52,7 @@ const monsters=idlePositions.map((init,index)=>{
 const items=[
   ...['A','B','C'].map((symbol,level)=>({name:'Cartouche '+(level+1),kind:'cell',symbol,bit:1<<level,level})),
   {name:'Lampe',kind:'lamp',symbol:'S',level:0}, {name:'Balise acoustique',kind:'decoy',symbol:'S',level:0},
-  ...[0,1,2].map(level=>({name:'Échantillon '+(level+1),kind:'sample',symbol:'E',bit:8<<level,level})),
+  ...[0,1,2].map(level=>({name:'Échantillon '+(level+1),kind:'sample',symbol:level===0?'D':'E',bit:8<<level,level})),
 ].map(item=>{
   const mesh=itemModel(item.kind),home=where(item.symbol,.63,item.level);
   if(item.kind==='lamp'||item.kind==='decoy'){
@@ -75,6 +75,7 @@ let audio,master,noise,creatureAudio;
 let grounded=true,touchCrouch=false;
 const extractionSeconds=8;
 let extractionCharge=0,extractionAlarm=false;
+let expedition=false,credits=0,lampPurchased=false;
 let stickAssist=true;
 const vrGrip={grip:5,slide:3,jump:5,weight:4};
 const hands=[0,1].map(index=>{
@@ -262,6 +263,7 @@ function findItem(position,look=null){
   let candidate=null,max=look?2.1:.38;
   for(const item of items){
     if(item.level!==session.level||!item.mesh.visible||item.owner)continue;
+    if(expedition&&(item.kind==='cell'||item.kind==='lamp'&&!lampPurchased))continue;
     aux.subVectors(item.mesh.position,position);
     const distance=aux.length();
     if(distance>=max||(look&&aux.dot(look)<distance*.76)||!visibleBetween(position,item.mesh.position))continue;
@@ -285,7 +287,14 @@ function use(hand){
   if(session.won||session.scare)return;
   if(lift(-1))return;
   const item=hand.held;
-  if(!item)return;
+  if(!item){
+    universeView();
+    if(expedition&&atCargo()&&credits>0&&!lampPurchased){
+      credits--;lampPurchased=true;
+      tone(480,810,.27,.27,'triangle');
+    }
+    return;
+  }
   if(item.kind==='lamp')session.light=!session.light;
   if(item.kind==='decoy'){
     if(localBeacon.until>frameTime)return;
@@ -300,6 +309,7 @@ function use(hand){
     return;
   }
   if(item.kind==='cell'||item.kind==='sample'){
+    if(expedition&&item.kind==='sample'&&!(session.mask&item.bit))credits++;
     session.mask|=item.bit;release(hand);item.mesh.visible=false;
     tone(370,850,.3,.28,'triangle');
     if(item.kind==='sample')tone(740,1110,.44,.25,'sine');
@@ -325,12 +335,14 @@ addEventListener('blur',()=>{key.clear();controls.clear();});
 function resetGame(){
   session.mask=0;session.won=false;session.immunity=frameTime+5;
   extractionCharge=0;extractionAlarm=false;
+  credits=0;lampPurchased=false;
   session.light=false;
   clearScare();
   lure.until=0;localBeacon.until=0;seenBeacons.clear();hunt.reset();
   for(const hand of [...hands,flatHand])release(hand);
   for(const item of items){
     item.level=item.homeLevel;
+    if(item.kind==='sample'&&item.homeLevel===0)item.home.copy(where(expedition?'D':'E',.63));
     item.mesh.position.copy(item.home);item.mesh.rotation.set(0,0,0);item.mesh.visible=true;
   }
   monsters.forEach((m,i)=>{
@@ -346,10 +358,11 @@ function removePeers(){
   peersUI.clear();
 }
 function start(){
+  expedition=el('game-mode').value==='explore';
   stickAssist=el('vr-motion').value!=='arms';
   session.play=true;session.room=el('room').value;resetGame();
   menu.hidden=true;hud.hidden=false;
-  audioStart();rooms.join(session.room);serverText='';
+  audioStart();rooms.join(session.room,expedition?'explore':'mission');serverText='';
   audio?.resume().then(()=>{tone(640,390,.24,.45,'triangle');scrape(480,.5,.23,0);}).catch(()=>{});
 }
 function stop(){
@@ -657,6 +670,9 @@ function patrol(dt,peers,host){
 }
 function updateHeld(){
   for(const [i,item] of items.entries()){
+    if(expedition&&(item.kind==='cell'||item.kind==='lamp'&&!lampPurchased)){
+      item.mesh.visible=false;continue;
+    }
     if(item.bit&&(session.mask&item.bit)){
       if(item.owner)release(item.owner);
       item.mesh.visible=false;continue;
@@ -730,6 +746,7 @@ function syncWorld(peers,dt){
 
 selectLevel(0);resetBody();
 function tickExtraction(dt){
+  if(expedition)return 0;
   const ready=(session.mask&7)===7;
   if(ready&&!extractionAlarm){
     extractionAlarm=true;
@@ -763,7 +780,7 @@ function drawFrame(time){
     const remaining=tickExtraction(dt);
     const count=(session.mask&1)+Number(Boolean(session.mask&2))+Number(Boolean(session.mask&4));
     const salvage=Number(Boolean(session.mask&8))+Number(Boolean(session.mask&16))+Number(Boolean(session.mask&32));
-    el('counter').textContent='CARTOUCHES '+count+' / 3';
+    el('counter').textContent=expedition?'CRÉDITS '+credits:'CARTOUCHES '+count+' / 3';
     el('salvage').textContent='ÉCHANTILLONS '+salvage+' / 3';
     if(session.won)showHint('Confinement rétabli · mission réussie. Retour au menu pour rejouer.');
     else if(!session.scare){
@@ -772,12 +789,15 @@ function drawFrame(time){
       const liftHint=['E · monter','E · monter / F · descendre','F · descendre'][session.level];
       showHint(remaining?'SAS 04 · Reste dans la zone · '+remaining+' s':atLift()?liftHint:held?.kind==='sample'?(atCargo()?'F · déposer '+held.name:'Rapporte '+held.name+' au refuge, niveau 1.'):
         held?'E · lâcher / F · utiliser '+held.name:nearItem?'E · saisir '+nearItem.name:
-        count===3?'Rejoins le sas 04, niveau 1.':inShelter(eye.x,eye.z,session.level)?'REFUGE · Prends ton matériel et suis le balisage.':'');
+        expedition&&atCargo()&&!lampPurchased?(credits?'F · Acheter la lampe (1 crédit)':'Dépôt · Rapporte 1 échantillon pour acheter une lampe'):
+        !expedition&&count===3?'Rejoins le sas 04, niveau 1.':inShelter(eye.x,eye.z,session.level)?'REFUGE · Prends ton matériel et suis le balisage.':'');
     }
     const liftMessage=['GRIP · MONTER','GRIP ↑  /  GÂCHETTE ↓','GÂCHETTE · DESCENDRE'][session.level];
     const sample=hands.some(hand=>hand.held?.kind==='sample');
     const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':remaining?'EXTRACTION · '+remaining+' s':atLift()?liftMessage:
-      sample?(atCargo()?'GÂCHETTE · DÉPOSER':'ÉCHANTILLON → REFUGE'):count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
+      sample?(atCargo()?'GÂCHETTE · DÉPOSER':'ÉCHANTILLON → REFUGE'):
+      expedition?(atCargo()&&!lampPurchased?'LAMPE · 1 CRÉDIT · GÂCHETTE':'EXPLORATION · CRÉDITS '+credits):
+      count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
   }
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;

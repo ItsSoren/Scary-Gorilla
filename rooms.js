@@ -26,6 +26,7 @@ export function unpack(value){
   }catch{return null;}
 }
 export function createRooms(onStatus,{Socket=globalThis.WebSocket,clock=()=>performance.now()}={}){
+  let mode='mission';
   const peers=new Map();
   const id=1000000+crypto.getRandomValues(new Uint32Array(1))[0]%9000000;
   let socket=null,room='',lane=id%names.length,retryAt=Infinity,openedAt=Infinity,lastSend=-Infinity,seq=0;
@@ -44,7 +45,8 @@ export function createRooms(onStatus,{Socket=globalThis.WebSocket,clock=()=>perf
     ws.onopen=()=>{
       if(socket!==ws)return;
       openedAt=clock();
-      ws.send(JSON.stringify({method:'handshake',project_id:project+'SALON'+room,user:'player'+id})+'\n');
+      const namespace=mode==='explore'?project+'EXPLORATION/':project;
+      ws.send(JSON.stringify({method:'handshake',project_id:namespace+'SALON'+room,user:'player'+id})+'\n');
       onStatus('Salon '+room+' · attente d’autres joueurs');
     };
     ws.onmessage=event=>{
@@ -79,8 +81,9 @@ export function createRooms(onStatus,{Socket=globalThis.WebSocket,clock=()=>perf
       }else onStatus('Salon '+room+' · relais refusé ('+event.code+')');
     };
   }
-  function join(next){
+  function join(next,gameMode='mission'){
     disconnect();room=/^[123]$/.test(next)?next:'';
+    mode=gameMode;
     lane=id%names.length;
     retryAt=openedAt=Infinity;
     if(room)connect();else onStatus('');

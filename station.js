@@ -338,7 +338,7 @@ function buildShelter(scene,lighting,furniture){
   const board=signAt(scene,'REFUGE 01 · STATION ÉCHO','#b3ffbb',start.x,2.2,start.z-1.62);
   board.position.x+=2.35;
   board.scale.setScalar(2.35);
-  for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  RÉCUPÈRE 3 CARTOUCHES','03  REJOINS LE SAS 04'].entries()){
+  for(const [i,text] of ['01  PRENDS TON MATÉRIEL','02  EXPLORE LES NIVEAUX','03  DÉPÔT AU COMPTOIR'].entries()){
     signAt(scene,text,'#d8e9dc',start.x+2.35,1.78-i*.296,start.z-1.62).scale.setScalar(.95);
   }
   const gate=where('S',0);gate.z+=tile*2.5;
@@ -567,6 +567,15 @@ export function buildStation(scene,level){
   const cargo=level===0?buildShelter(scene,lighting,furniture):null;
   buildSectorLandmark(scene,level,ledColor);
   if(level===0){
+    const dorm=where('D'),steel=paint('#48534f',.45),canvas=paint('#69715d');
+    for(const y of [.47,1.35]){
+      piece(scene,box,steel,dorm.x+.99,y,dorm.z,1.05,.095,2.37);
+      piece(scene,box,canvas,dorm.x+.99,y+.095,dorm.z,.96,.125,2.23);
+      piece(scene,box,paint('#96957f'),dorm.x+.99,y+.18,dorm.z-.81,.67,.07,.39);
+    }
+    for(const dx of [.49,1.49])for(const dz of [-1.16,1.16])piece(scene,box,steel,dorm.x+dx,.75,dorm.z+dz,.058,1.5,.058);
+    furniture(dorm.x+.99,.75,dorm.z,1.06,1.5,2.4);
+    signAt(scene,'DORTOIR · SERVICE DE NUIT','#c5c7a8',dorm.x+.3,2.19,dorm.z-1.66);
     const post=where('E');
     signAt(scene,'ARCHIVE 04 · LIAISON PERDUE','#ffa873',post.x,2.45,post.z-.79).scale.setScalar(1.1);
   }
