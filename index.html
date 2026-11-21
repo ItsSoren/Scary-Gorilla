@@ -31,13 +31,13 @@
   <button id="back" aria-label="Retour au menu">← Menu</button>
   <output id="counter">CARTOUCHES 0 / 3</output><output id="salvage">ÉCHANTILLONS 0 / 3</output><output id="floor"></output><output id="connection"></output>
   <output id="supplies"></output>
-  <details id="debug"><summary>Debug exploration</summary><pre id="debug-light"></pre></details>
+  <details id="debug"><summary>Debug exploration</summary><pre id="debug-light"></pre><button id="debug-pool" type="button">Tester le bassin (écran, solo)</button></details>
   <output id="hint" role="status"></output>
   <div id="reticle" aria-hidden="true">⌖</div>
   <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button><button data-flat-action="jump">Sauter</button><button data-flat-action="crouch">S’accroupir</button></nav>
 </div>
 <script type="module">
-  import('./game.js?v=bunker6').catch(error=>{
+  import('./game.js?v=bassin1').catch(error=>{
     document.querySelector('#status').textContent='Le moteur 3D n’a pas pu se charger. Vérifie la connexion et recharge la page.';
     console.error(error);
   });

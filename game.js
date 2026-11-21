@@ -1,7 +1,7 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryOpen,galleryStart,galleryWet,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bunker6';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bassin1';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
 import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker6';
@@ -13,7 +13,7 @@ const canvas=el('game'),menu=el('menu'),hud=el('hud');
 const scene=new T.Scene();
 scene.background=new T.Color('#10191a');
 scene.fog=new T.FogExp2('#10191a',.068);
-const clearFog=new T.Color('#10191a'),coldFog=new T.Color('#537784');
+const clearFog=new T.Color('#10191a'),coldFog=new T.Color('#537784'),waterFog=new T.Color('#254239');
 let ventAt=0;
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
@@ -87,8 +87,8 @@ const rooms=createRooms(status=>{el('connection').textContent=status;if(!session
 const wrist=new T.Group();
 const wristMessages=new Map();
 let yaw=0,pitch=0,turnReady=true,previousTime=0,nearItem=null,serverText='',lastAudioStep=0,frameTime=0;
-let nextDrip=0;
-let audio,master,noise,creatureAudio;
+let nextDrip=0,nextPipe=0,immersion=0,wake=0;
+let audio,master,noise,creatureAudio,waterFilter;
 let grounded=true,touchCrouch=false;
 const extractionSeconds=8;
 let extractionCharge=0,extractionAlarm=false;
@@ -174,7 +174,8 @@ function moveRig(dx,dy,dz){
   if(clear(previous.x+offsetX+dx,previous.z+offsetZ))rig.position.x+=dx;
   if(clear(rig.position.x+offsetX,previous.z+offsetZ+dz))rig.position.z+=dz;
   const x=rig.position.x+offsetX,z=rig.position.z+offsetZ;
-  let floor=0,ceiling=3.17-height-.075;
+  let floor=galleryEnabled()&&z>=galleryStart?galleryGround(z):0;
+  let ceiling=3.17-height-.075;
   for(const box of area.fixtures){
     if(!overlapsBody(box,x,z))continue;
     if(previous.y>=box.max.y-.018)floor=Math.max(floor,box.max.y);
@@ -228,7 +229,13 @@ function atCargo(){
 function audioStart(){
   try{
     if(!audio){
-      audio=new AudioContext();master=audio.createGain();master.connect(audio.destination);
+      audio=new AudioContext();
+      master=audio.createGain();
+      waterFilter=audio.createBiquadFilter();
+      waterFilter.type='lowpass';
+      waterFilter.frequency.value=20000;
+      waterFilter.Q.value=.1;
+      master.connect(waterFilter).connect(audio.destination);
       creatureAudio=createCreatureAudio(audio,master);
       const hum=audio.createOscillator(),volume=audio.createGain();
       hum.type='triangle';hum.frequency.value=112;volume.gain.value=.13;
@@ -416,6 +423,15 @@ function stop(){
 }
 el('back').onclick=stop;
 el('start').onclick=start;
+el('debug-pool').onclick=()=>{
+  if(!session.play||!galleryEnabled()||renderer.xr.isPresenting)return;
+  rig.position.set(0,0,poolEntry);
+  yaw=Math.PI;pitch=-.12;view.rotation.set(pitch,yaw,0,'YXZ');
+  velocity.set(0,0,0);
+  touchCrouch=false;
+  grounded=true;
+  universeView();
+};
 el('volume').oninput=()=>{if(master)master.gain.value=Number(el('volume').value)*.0034;};
 el('audio-test').onclick=()=>{
   audioStart();
@@ -543,6 +559,8 @@ function updateBody(dt){
   rig.updateMatrixWorld(true);universeView();
   const grating=metalGrating(...cellOf(eye.x,eye.z,session.level),session.level);
   const wet=galleryEnabled()&&galleryWet(eye.x,eye.z);
+  const speedInWater=Math.hypot(bodyDelta.x,bodyDelta.z)/dt;
+  wake=T.MathUtils.lerp(wake,wet?Math.min(1,speedInWater/2):0,1-Math.exp(-dt*6));
   if(grating&&Math.hypot(bodyDelta.x,bodyDelta.z)/dt>2.15)session.run=true;
   if((rig.position.distanceToSquared(groundRig)>dt*dt*.9)&&frameTime-lastAudioStep>(session.run?.28:.47)){
     lastAudioStep=frameTime;
@@ -831,6 +849,9 @@ function drawFrame(time){
     const peers=rooms.activePeers();
     syncWorld(peers,dt);
     updateHeld(dt);
+    const surface=galleryEnabled()?galleryWaterHeight(eye.x,eye.z):0;
+    const target=surface&&eye.y<surface?T.MathUtils.smoothstep(surface-eye.y,0,.13):0;
+    immersion=T.MathUtils.lerp(immersion,target,1-Math.exp(-dt*15));
     const supply=fieldLight.read(frameTime);
     matchLight.visible=expedition&&supply.phase==='burning'&&!session.scare;
     if(matchLight.visible){
@@ -849,6 +870,8 @@ function drawFrame(time){
         'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
         'Graine : '+sectorSeed+' · Secteurs chargés : '+gallery.count,
         'Sol : '+(galleryEnabled()&&galleryWet(eye.x,eye.z)?'inondé':'sec')+' · Fuite : '+(gallery.leak?'présente':'absente'),
+        'Eau : '+(surface?Math.max(0,surface-galleryGround(eye.z)).toFixed(2)+' m':'hors bassin')+' · Vue sous l’eau : '+Math.round(immersion*100)+' %',
+        'Acoustique : '+(waterFilter?Math.round(waterFilter.frequency.value)+' Hz':'audio inactif'),
         'Signalétique : '+(eye.z>=galleryStart?({numbered:'numérotée',sparse:'rare',none:'absente'})[sectorLayout(sectorIndex(eye.z)).markings]:'s.o.'),
         'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
       ].join('\n');
@@ -884,19 +907,36 @@ function drawFrame(time){
       count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
   }
+  if(!session.play)immersion=0;
+  if(waterFilter)waterFilter.frequency.setTargetAtTime(20000*Math.pow(.021,immersion),audio.currentTime,.04);
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
-  const outside=galleryEnabled()&&eye.z>=galleryStart;
+  const outside=session.play&&galleryEnabled()&&eye.z>=galleryStart;
   const depth=outside?sectorIndex(eye.z):-1;
-  gallery.animate(frameTime,outside&&session.play);
+  gallery.animate(frameTime,outside,eye,immersion);
   const leak=outside?gallery.leak:null;
   if(leak&&session.play&&frameTime>=nextDrip){
     const dx=leak.x-eye.x,dz=leak.z-eye.z;
     const distance=Math.hypot(dx,dz);
     if(distance<12){
       const pan=T.MathUtils.clamp((-dx*sight.z+dz*sight.x)/Math.max(1,distance),-1,1);
-      tone(590,260,.115,.16*(1-distance/12),'sine',pan);
+      const clear=visibleBetween(eye,leak);
+      tone(clear?1120:390,clear?490:185,.13,.24*(1-distance/12)*(clear?1:.28),'sine',pan);
+      if(clear)scrape(1870,.085,.079*(1-distance/12),pan);
     }
     nextDrip=frameTime+.69+Math.sin(frameTime*7)**2*.31;
+  }
+  if(outside&&frameTime>=nextPipe){
+    const source=gallery.lamps?.at(-1);
+    if(source){
+      const dx=source.x-eye.x,dz=source.z-eye.z,distance=Math.hypot(dx,dz);
+      const gain=.19*Math.max(0,1-distance/20)*(visibleBetween(eye,source)?1:.21);
+      if(gain>.004){
+        const pan=T.MathUtils.clamp((-dx*sight.z+dz*sight.x)/Math.max(1,distance),-1,1);
+        tone(174,81,.53,gain,'triangle',pan);
+        scrape(610,.43,gain*.53,pan);
+      }
+    }
+    nextPipe=frameTime+5.7+Math.sin(frameTime*1.35)**2*4.2;
   }
   el('floor').textContent=outside?(depth<3?'GALERIE '+(depth+1)+' · '+sectorLayout(depth).name:'GALERIE DE SERVICE'):
     (session.level+1)+' / 3 · '+levelNames[session.level];
@@ -909,12 +949,15 @@ function drawFrame(time){
   const vapor=cryoVapor(eye.x,eye.z,session.level);
   scene.fog.color.copy(clearFog).lerp(coldFog,vapor*.76);
   scene.fog.density=.068+vapor*(.17+.021*Math.sin(frameTime*.72));
+  scene.fog.color.lerp(waterFog,immersion*.93);
+  scene.fog.density+=immersion*.31;
   scene.background.copy(scene.fog.color);
   if(session.play&&vapor>.25&&frameTime>ventAt){
     scrape(930,.69,vapor*.26,.2);
     ventAt=frameTime+2.35;
   }
   const safeLight=inShelter(eye.x,eye.z,session.level);
+  if(outside&&first&&second)gallery.shade(scene.fog,eye,first,second,wake);
   corridorLights.forEach((light,i)=>{
     light.position.copy(i===0?first:second);
     light.color.set(safeLight?'#e1ffe1':station().ledColor);

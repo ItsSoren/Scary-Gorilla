@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Group} from './three.js';
-import {createGallery,galleryOpen,galleryStart,galleryWet,sectorIndex,sectorLayout} from './sectors.js';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,poolSurface,sectorIndex,sectorLayout} from './sectors.js';
 globalThis.document={createElement:()=>({getContext:()=>({fillRect(){},strokeRect(){},fillText(){}})})};
 
 test('Sector layouts are repeatable and the main passage stays connected',()=>{
@@ -51,15 +51,48 @@ test('Water stays on walkable cells and particles switch off outside the gallery
   const z=galleryStart+3.5*4.5;
   assert.equal(galleryWet(0,z),true);
   assert.equal(galleryWet(14,z),false);
-  assert.equal(galleryWet(0,galleryStart+31.5+3.5*4.5),false);
+  assert.equal(galleryWet(0,galleryStart+31.5+.5),false);
   gallery.update(z);
   assert.ok(gallery.leak);
   gallery.animate(1,true);
   assert.equal(gallery.particleCount,36);
   gallery.update(z+31.5);
   gallery.animate(2,true);
-  assert.equal(gallery.leak,null);
   assert.equal(gallery.particleCount,36);
   gallery.animate(2,false);
   assert.equal(gallery.particleCount,0);
+});
+
+test('Procedural water varies by sector and never covers a wall',()=>{
+  const patterns=new Set();
+  let basins=0;
+  for(let index=1;index<41;index++){
+    const cells=[];
+    for(let row=0;row<9;row++)for(let col=0;col<9;col++){
+      const x=(col-4)*3.5,z=galleryStart+index*31.5+(row+.5)*3.5;
+      const surface=galleryWaterHeight(x,z);
+      if(surface)assert.ok(galleryOpen(x,z));
+      cells.push(Math.sign(surface));
+    }
+    if(cells.includes(-1))basins++;
+    patterns.add(cells.join(','));
+  }
+  assert.ok(basins>0&&basins<40);
+  assert.ok(patterns.size>20);
+});
+
+test('Pump basin has two walkable stairs and a continuous submerged floor',()=>{
+  assert.equal(galleryGround(poolEntry),0);
+  assert.equal(galleryWaterHeight(0,poolEntry),0);
+  const middle=galleryStart+3.5*5;
+  assert.ok(Math.abs(poolSurface-galleryGround(middle)-1.2)<1e-9);
+  assert.ok(galleryGround(middle)+.96<poolSurface);
+  assert.ok(galleryGround(middle)+1.62>poolSurface);
+  assert.equal(galleryWaterHeight(0,middle),poolSurface);
+  assert.equal(galleryWaterHeight(14,middle),0);
+  for(let z=poolEntry;z<galleryStart+3.5*7.1;z+=.1){
+    assert.ok(galleryOpen(0,z));
+    assert.ok(Math.abs(galleryGround(z+.1)-galleryGround(z))<.23);
+  }
+  assert.equal(galleryGround(galleryStart+3.5*7.1),0);
 });
