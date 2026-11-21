@@ -127,8 +127,15 @@ export function predator(type){
   const wide=[1.04,.77,1.16][type],height=[1,.79,1.13][type];
   const body=new T.Group();
   root.add(body);
-  piece(body,muscle,skin,0,1.32,0,.69*wide,.82,.43);
+  piece(body,muscle,skin,0,1.32,0,.69*wide,.82,type===0?.57:.43);
   piece(body,muscle,skin,0,1.8,.03,.84*wide,.43,.48);
+  if(type===0){
+    for(const side of [-1,1]){
+      piece(body,muscle,skin,side*.48,1.88,-.08,.48,.39,.49).rotation.z=side*.38;
+      piece(body,muscle,skin,side*.29,1.53,.36,.36,.33,.22).rotation.z=-side*.24;
+    }
+    piece(body,muscle,skin,0,1.94,.16,.46,.34,.41);
+  }
   const head=new T.Group();
   head.position.set(0,1.96,.34);
   body.add(head);
@@ -136,8 +143,16 @@ export function predator(type){
   piece(head,muscle,type===1?ceramic:skin,0,.05,.24,.35*wide,.32,.33);
   const jaw=piece(head,sphere,dark,0,-.12,.48,.27*wide,.15,.09);
   for(const side of [-1,1]){
-    piece(head,sphere,glow,side*.17*wide,.14,.49,type===1?.1:.065,.035,.04);
-    piece(head,limbs,ceramic,side*.15,-.12,.55,.035,.14,.036);
+    if(type!==0){
+      piece(head,sphere,glow,side*.17*wide,.14,.49,type===1?.1:.065,.035,.04);
+      piece(head,limbs,ceramic,side*.15,-.12,.55,.035,.14,.036);
+    }else{
+      piece(head,muscle,dark,side*.17,.167,.48,.124,.079,.104);
+      piece(head,muscle,glow,side*.166,.163,.571,.028,.019,.016);
+      piece(head,muscle,skin,side*.171,.228,.493,.166,.069,.115).rotation.z=side*.27;
+      piece(head,muscle,skin,side*.285,.005,.408,.147,.21,.17);
+      piece(head,muscle,dark,side*.077,.023,.644,.049,.031,.021);
+    }
   }
   const legs=[-1,1].map(side=>{
     const leg=new T.Group();
@@ -160,6 +175,9 @@ export function predator(type){
     return arm;
   });
   if(type===0){
+    piece(head,muscle,skin,0,.28,.016,.225,.28,.31);
+    piece(head,muscle,skin,0,.051,.471,.219,.142,.177);
+    piece(head,muscle,skin,0,-.239,.43,.273,.085,.146);
     for(let i=0;i<4;i++)piece(body,box,ceramic,0,1.23+i*.17,-.37,.39,.075,.09);
   }else if(type===1){
     piece(head,box,dark,0,.06,.51,.53,.085,.085);
@@ -480,6 +498,10 @@ export function buildStation(scene,level){
   }
   const cargo=level===0?buildShelter(scene,lighting,furniture):null;
   buildSectorLandmark(scene,level,ledColor);
+  if(level===0){
+    const post=where('E');
+    signAt(scene,'ARCHIVE 04 · LIAISON PERDUE','#ffa873',post.x,2.45,post.z-.79).scale.setScalar(1.1);
+  }
   if(level===2){
     const entry=where('L',0,2);
     signAt(scene,'CAILLEBOTIS · MARCHE LENTEMENT','#ccf3af',entry.x,1.72,entry.z-1.65).scale.setScalar(1.38);

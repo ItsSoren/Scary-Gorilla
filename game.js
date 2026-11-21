@@ -2,7 +2,7 @@ import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=extraction1';
-import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=extraction1';
+import {buildStation, cellOf, cryoVapor, fits, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=belier1';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -618,7 +618,11 @@ function patrol(dt,peers,host){
     const pace=T.MathUtils.clamp(travelled/dt*.31,0,1);
     const gait=Math.sin(m.stride),breath=Math.sin(frameTime*3.8+i);
     m.body.position.y=(hiding?[-.21,-.39,-.32][i]:winding?-.25:0)+Math.abs(gait)*pace*[.15,.085,.1][i];
-    m.body.rotation.x=(hiding?[.12,.25,.42][i]:striking?[.25,.36,.48][i]:.03)+breath*.026;
+    m.body.rotation.x=(hiding?[.26,.25,.42][i]:striking?[.39,.36,.48][i]:i===0?.13:.03)+breath*.026;
+    if(i===0){
+      m.body.position.y-=.12;
+      m.head.position.z=.38+pace*.12;
+    }
     m.body.rotation.z=gait*pace*[.095,.18,.11][i];
     m.head.rotation.x=.04+breath*.07-(striking?.13:0);
     m.head.rotation.z=hiding?Math.sin(frameTime*2+i)*[.13,.34,.23][i]:0;
@@ -640,7 +644,11 @@ function patrol(dt,peers,host){
       tone([115,170,215][i],57,.17,gain*(striking?.32:.18),'triangle',pan);
       if(i!==0&&striking)scrape(i===1?690:1450,.16,gain*.12,pan);
     }
-    if(newCharge||frameTime>m.voiceAt){
+    const listening=i===0&&hiding&&!newCharge;
+    if(listening&&distance<9&&frameTime>m.voiceAt){
+      m.voiceAt=frameTime+4.8;
+      scrape(280,.36,gain*.17,pan);
+    }else if(!listening&&(newCharge||frameTime>m.voiceAt)){
       m.voiceAt=frameTime+(charging?[1.9,2.6,1.54][i]:hiding?[4.1,3.1,2.7][i]:[5.5,6.5,4.5][i]);
       creatureAudio?.play(i,charging,gain*(charging?.95:hiding?.56:.47),pan,!visible);
     }
@@ -656,8 +664,9 @@ function updateHeld(){
     item.mesh.visible=!!item.owner||item.level===session.level;
     if(item.owner===flatHand){
       item.mesh.position.copy(eye).addScaledVector(sight,.73);
-      item.mesh.position.y-=.24;
-      item.mesh.rotation.set(.08,yaw,0);
+      item.mesh.position.add(aux.set(1,0,0).applyQuaternion(view.quaternion).multiplyScalar(.29));
+      item.mesh.position.y-=.32;
+      item.mesh.quaternion.copy(view.quaternion);
     }else if(item.owner){
       item.owner.grip.getWorldQuaternion(item.mesh.quaternion);
       item.owner.grip.getWorldPosition(item.mesh.position);
