@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111719">
 <title>Scary Gorilla · Station Écho</title>
-<link rel="stylesheet" href="./style.css?v=refuge1">
+<link rel="stylesheet" href="./style.css?v=bunker3">
 </head>
 <body>
 <canvas id="game" aria-label="Laboratoire 3D"></canvas>
@@ -30,12 +30,14 @@
 <div id="hud" hidden>
   <button id="back" aria-label="Retour au menu">← Menu</button>
   <output id="counter">CARTOUCHES 0 / 3</output><output id="salvage">ÉCHANTILLONS 0 / 3</output><output id="floor"></output><output id="connection"></output>
+  <output id="supplies"></output>
+  <details id="debug"><summary>Debug éclairage</summary><pre id="debug-light"></pre></details>
   <output id="hint" role="status"></output>
   <div id="reticle" aria-hidden="true">⌖</div>
   <nav><button data-flat-action="interact">Saisir</button><button data-flat-action="use">Utiliser</button><button data-flat-action="jump">Sauter</button><button data-flat-action="crouch">S’accroupir</button></nav>
 </div>
 <script type="module">
-  import('./game.js?v=bunker2').catch(error=>{
+  import('./game.js?v=bunker3').catch(error=>{
     document.querySelector('#status').textContent='Le moteur 3D n’a pas pu se charger. Vérifie la connexion et recharge la page.';
     console.error(error);
   });

@@ -14,6 +14,10 @@ Les créatures retiennent la dernière position entendue ou aperçue. Elles se t
 
 ## Jouer
 
+En exploration libre, pars avec trois allumettes. Utilise une main vide (F ou gâchette) loin du comptoir : l’allumage prend deux secondes, puis la flamme éclaire pendant deux secondes. Le comptoir recharge gratuitement les allumettes. Une lampe achetée dispose de 120 secondes d’éclairage. Pour changer la pile, utilise la lampe éteinte au comptoir avec un crédit disponible.
+
+Sur écran, ouvre **Debug éclairage** pendant la partie pour voir le stock, la phase de l’allumette, sa durée restante, la pile, le comptoir et l’état WebXR. Les tests de la mécanique seule se lancent avec `node --test field-light.test.mjs`.
+
 - PC · ZQSD ou WASD, glisser pour regarder, Maj pour courir, Espace pour sauter, C pour s’accroupir, E pour saisir ou lâcher et F pour utiliser.
 - Casque · Ouvre le jeu en HTTPS dans le navigateur du casque. Pousse sur les surfaces avec les mains ou utilise le stick gauche. Grip pour saisir, gâchette pour utiliser, stick droit pour tourner par crans.
 - Ascenseur · Sur la plateforme, E ou grip pour monter, F ou gâchette pour descendre.

@@ -1,5 +1,6 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
+import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
 import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker2';
@@ -33,6 +34,9 @@ const corridorLights=Array.from({length:2},()=>new T.PointLight('#ff9d66',17,8,2
 scene.add(...corridorLights);
 const flashlight=new T.SpotLight('#d4fff0',41,14,.48,.52,1.7);
 scene.add(flashlight,flashlight.target);
+const matchLight=new T.PointLight('#ffbb66',0,7,1.5);
+matchLight.visible=false;
+scene.add(matchLight);
 const sight=new T.Vector3(),eye=new T.Vector3(),ray=new T.Vector3(),aux=new T.Vector3();
 const velocity=new T.Vector3(),movement=new T.Vector3(),bodyDelta=new T.Vector3(),previous=new T.Vector3();
 const groundRig=new T.Vector3();
@@ -76,6 +80,7 @@ let grounded=true,touchCrouch=false;
 const extractionSeconds=8;
 let extractionCharge=0,extractionAlarm=false;
 let expedition=false,credits=0,lampPurchased=false;
+const fieldLight=createFieldLight();
 let stickAssist=true;
 const vrGrip={grip:5,slide:3,jump:5,weight:4};
 const hands=[0,1].map(index=>{
@@ -289,13 +294,31 @@ function use(hand){
   const item=hand.held;
   if(!item){
     universeView();
-    if(expedition&&atCargo()&&credits>0&&!lampPurchased){
-      credits--;lampPurchased=true;
-      tone(480,810,.27,.27,'triangle');
+    if(!expedition)return;
+    if(atCargo()){
+      const {matches}=fieldLight.read(frameTime);
+      if(credits>0&&!lampPurchased){
+        credits--;lampPurchased=true;
+        tone(480,810,.27,.27,'triangle');
+      }else if(matches<matchCapacity){
+        fieldLight.restock();
+        tone(380,490,.18,.2,'triangle');
+      }
+    }else if(fieldLight.strike(frameTime)){
+      scrape(1600,.26,.24,0);
     }
     return;
   }
-  if(item.kind==='lamp')session.light=!session.light;
+  if(item.kind==='lamp'){
+    const {battery}=fieldLight.read(frameTime);
+    if(expedition&&atCargo()&&battery<batteryCapacity&&credits>0&&!session.light){
+      credits--;
+      fieldLight.replaceBattery();
+      tone(400,675,.2,.22,'triangle');
+      return;
+    }
+    session.light=(!expedition||battery>0)&&!session.light;
+  }
   if(item.kind==='decoy'){
     if(localBeacon.until>frameTime)return;
     lure.x=item.mesh.position.x;lure.z=item.mesh.position.z;
@@ -336,6 +359,7 @@ function resetGame(){
   session.mask=0;session.won=false;session.immunity=frameTime+5;
   extractionCharge=0;extractionAlarm=false;
   credits=0;lampPurchased=false;
+  fieldLight.reset();
   session.light=false;
   clearScare();
   lure.until=0;localBeacon.until=0;seenBeacons.clear();hunt.reset();
@@ -367,6 +391,8 @@ function start(){
 }
 function stop(){
   if(!session.play)return;
+  matchLight.visible=false;
+  fieldLight.extinguish();
   session.play=false;rooms.join('');removePeers();
   if(audio?.state==='running')audio.suspend().catch(()=>{});
   clearScare();
@@ -524,6 +550,7 @@ const attackProfiles=[
   {duration:1.02,windup:.10,impact:.25,near:.76,far:1.55,tilt:.21,reach:1.05,noise:1620,rate:1},
 ];
 function makeScare(index){
+  fieldLight.extinguish();
   const model=predator(index);
   const profile=attackProfiles[index];
   const intense=el('shock').value==='full';
@@ -668,7 +695,7 @@ function patrol(dt,peers,host){
     if(striking&&!local.protected&&!passageAt(eye.x,eye.z,session.level)&&distance<[1.45,1.15,1.29][i]&&visible)makeScare(i);
   }
 }
-function updateHeld(){
+function updateHeld(dt){
   for(const [i,item] of items.entries()){
     if(expedition&&(item.kind==='cell'||item.kind==='lamp'&&!lampPurchased)){
       item.mesh.visible=false;continue;
@@ -692,6 +719,13 @@ function updateHeld(){
     }
   }
   const lamp=items[3];
+  if(expedition&&session.light&&lamp.owner&&!session.scare){
+    fieldLight.consume(dt);
+    if(fieldLight.read(frameTime).battery===0){
+      session.light=false;
+      tone(320,105,.26,.18,'triangle');
+    }
+  }
   flashlight.visible=session.light&&!!lamp.owner&&!session.scare;
   flashlight.position.copy(lamp.mesh.position);
   flashlight.target.position.copy(flashlight.position)
@@ -776,7 +810,25 @@ function drawFrame(time){
     if(!scared&&!session.won)updateBody(dt);
     const peers=rooms.activePeers();
     syncWorld(peers,dt);
-    updateHeld();
+    updateHeld(dt);
+    const supply=fieldLight.read(frameTime);
+    matchLight.visible=expedition&&supply.phase==='burning'&&!session.scare;
+    if(matchLight.visible){
+      matchLight.position.copy(eye).addScaledVector(sight,.42);
+      matchLight.position.y-=.28;
+      matchLight.intensity=15+Math.sin(frameTime*42)*1.8;
+    }
+    el('supplies').textContent=expedition?'ALLUMETTES '+supply.matches+(lampPurchased?' · PILE '+Math.ceil(supply.battery/batteryCapacity*100)+' %':''):'';
+    if(el('debug').open&&Math.floor(frameTime*4)!==Math.floor((frameTime-dt)*4)){
+      el('debug-light').textContent=[
+        'Mode : '+(expedition?'exploration':'mission'),
+        'Niveau : '+(session.level+1)+' · Comptoir : '+(atCargo()?'oui':'non'),
+        'Allumette : '+supply.phase+' · '+supply.remaining.toFixed(2)+' s',
+        'Piles : '+supply.battery.toFixed(1)+' / '+batteryCapacity+' s',
+        'Lampe : '+(flashlight.visible?'allumée':'éteinte')+' · Crédits : '+credits,
+        'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
+      ].join('\n');
+    }
     const remaining=tickExtraction(dt);
     const count=(session.mask&1)+Number(Boolean(session.mask&2))+Number(Boolean(session.mask&4));
     const salvage=Number(Boolean(session.mask&8))+Number(Boolean(session.mask&16))+Number(Boolean(session.mask&32));
@@ -788,15 +840,23 @@ function drawFrame(time){
       const held=flatHand.held;
       const liftHint=['E · monter','E · monter / F · descendre','F · descendre'][session.level];
       showHint(remaining?'SAS 04 · Reste dans la zone · '+remaining+' s':atLift()?liftHint:held?.kind==='sample'?(atCargo()?'F · déposer '+held.name:'Rapporte '+held.name+' au refuge, niveau 1.'):
-        held?'E · lâcher / F · utiliser '+held.name:nearItem?'E · saisir '+nearItem.name:
-        expedition&&atCargo()&&!lampPurchased?(credits?'F · Acheter la lampe (1 crédit)':'Dépôt · Rapporte 1 échantillon pour acheter une lampe'):
+        held?.kind==='lamp'&&expedition&&atCargo()&&!session.light&&supply.battery<batteryCapacity&&credits?'F · Remplacer la pile (1 crédit)':
+        held?'E · lâcher / F · utiliser '+held.name:
+        expedition&&atCargo()&&credits&&!lampPurchased?'F · Acheter la lampe (1 crédit)':
+        expedition&&atCargo()&&supply.matches<matchCapacity?'F · Reprendre des allumettes (gratuit)':
+        nearItem?'E · saisir '+nearItem.name:
+        expedition&&supply.phase==='striking'?'Allumage · '+supply.remaining.toFixed(1)+' s':
+        expedition&&!atCargo()&&supply.matches?'F · Craquer une allumette':
         !expedition&&count===3?'Rejoins le sas 04, niveau 1.':inShelter(eye.x,eye.z,session.level)?'REFUGE · Prends ton matériel et suis le balisage.':'');
     }
     const liftMessage=['GRIP · MONTER','GRIP ↑  /  GÂCHETTE ↓','GÂCHETTE · DESCENDRE'][session.level];
     const sample=hands.some(hand=>hand.held?.kind==='sample');
     const message=session.won?'MISSION RÉUSSIE':session.scare?'CONFINEMENT ROMPU':remaining?'EXTRACTION · '+remaining+' s':atLift()?liftMessage:
       sample?(atCargo()?'GÂCHETTE · DÉPOSER':'ÉCHANTILLON → REFUGE'):
-      expedition?(atCargo()&&!lampPurchased?'LAMPE · 1 CRÉDIT · GÂCHETTE':'EXPLORATION · CRÉDITS '+credits):
+      expedition?(atCargo()&&hands.some(hand=>hand.held?.kind==='lamp')&&!session.light&&supply.battery<batteryCapacity&&credits?'PILE · 1 CRÉDIT · GÂCHETTE':
+        atCargo()&&credits&&!lampPurchased?'LAMPE · 1 CRÉDIT · GÂCHETTE':
+        atCargo()&&supply.matches<matchCapacity?'ALLUMETTES GRATUITES · GÂCHETTE':
+        'ALLUMETTES '+supply.matches+(lampPurchased?' · PILE '+Math.ceil(supply.battery/12)*10+' %':'')):
       count===3?'SAS 04 · NIVEAU 1':'N'+(session.level+1)+' · CARTOUCHES '+count+' / 3';
     if(renderer.xr.isPresenting&&wrist.userData.message!==message){wrist.userData.message=message;setXRMessage(message);}
   }
