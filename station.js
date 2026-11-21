@@ -375,31 +375,33 @@ function rainyExterior(scene,x,z){
   piece(scene,box,concrete,x-.94,1.6,z,.78,3.2,3.5);
   piece(scene,box,concrete,x+1.04,1.6,z,.73,3.2,3.5);
   piece(scene,box,concrete,x,2.86,z,1.29,.68,3.5);
-  piece(scene,box,steel,x-.19,1.22,z+1.46,.94,2.44,.24).rotation.y=-.14;
-  piece(scene,box,steel,x+.12,1.06,z+1.62,.16,.065,.22);
-
-  const ground=paint('#283931',.4);ground.map=surfaceMap('wall');ground.roughness=.41;
-  piece(scene,box,ground,x,-.14,z-16,39,.25,32);
-  const puddle=paint('#627471',.64);puddle.roughness=.21;
-  piece(scene,muscle,puddle,x+.65,.003,z-4,1.6,.009,2.13);
-  piece(scene,box,new T.MeshBasicMaterial({color:'#647775'}),x,4,z-35,55,20,.1);
-  const crowns=new T.InstancedMesh(new T.ConeGeometry(1,1,6),new T.MeshBasicMaterial({color:'#ffffff'}),138);
-  const trunks=new T.InstancedMesh(box,new T.MeshBasicMaterial({color:'#354139'}),46);
-  const part=new T.Object3D();
-  for(let i=0;i<46;i++){
-    const tx=x+(grain(i,47)-.5)*36,tz=z-2.7-grain(i,83)*28,h=3.8+grain(i,9)*5.7;
-    if(Math.abs(tx-x)<1.6&&tz>z-8)part.position.set(tx+2.9,h*.32,tz);
-    else part.position.set(tx,h*.32,tz);
-    const px=part.position.x;
-    part.scale.set(.16,h*.69,.17);part.updateMatrix();trunks.setMatrixAt(i,part.matrix);
-    for(let j=0;j<3;j++){
-      part.position.set(px,h*(.43+j*.173),tz);
-      part.scale.set(h*(.22-j*.039),h*.52,h*(.22-j*.039));part.updateMatrix();
-      crowns.setMatrixAt(i*3+j,part.matrix);
-      crowns.setColorAt(i*3+j,new T.Color('#152a22').lerp(new T.Color('#70827a'),Math.min(.74,(z-tz)/42)));
-    }
+  const door=new T.Group();
+  door.position.set(x-.62,0,z+1.64);door.rotation.y=.23;scene.add(door);
+  piece(door,box,steel,.42,1.23,0,.89,2.46,.37);
+  const brace=paint('#505b51',.48);
+  for(const y of [.39,1.25,2.1]){
+    piece(door,box,brace,.42,y,.21,.85,.11,.11);
+    piece(door,barrel,steel,-.073,y,.028,.105,.25,.105);
+    for(const dx of [.1,.73])piece(door,barrel,steel,dx,y,.282,.037,.028,.037).rotation.x=Math.PI/2;
   }
-  scene.add(trunks,crowns);
+  const wheel=new T.Mesh(new T.TorusGeometry(.146,.022,8,20),brace);
+  wheel.position.set(.53,1.27,.32);door.add(wheel);
+  for(const angle of [0,Math.PI/3,-Math.PI/3])
+    piece(door,box,brace,.53,1.27,.32,.31,.023,.026).rotation.z=angle;
+  piece(door,box,steel,.53,1.27,.34,.085,.085,.075);
+
+  const ground=paint('#323c35',.25);
+  ground.map=surfaceMap('wall');ground.roughness=.52;
+  piece(scene,box,ground,x,-.14,z-4,10,.25,8);
+  const backdrop=new T.MeshBasicMaterial({color:'#536963',fog:false});
+  if(globalThis.document?.createElementNS){
+    new T.TextureLoader().load(new URL('./forest-rain.jpg',import.meta.url).href,texture=>{
+      texture.colorSpace=T.SRGBColorSpace;
+      backdrop.color.set(0xffffff);backdrop.map=texture;backdrop.needsUpdate=true;
+    });
+  }
+  const forest=new T.Mesh(new T.PlaneGeometry(24,16),backdrop);
+  forest.position.set(x,3.25,z-8.03);scene.add(forest);
   const rain=new Float32Array(180*6),geometry=new T.BufferGeometry();
   const attribute=new T.BufferAttribute(rain,3).setUsage(T.DynamicDrawUsage);
   geometry.setAttribute('position',attribute);

@@ -1,10 +1,10 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=paume2';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryOpen,galleryStart,sectorIndex,sectorLayout,sectorSeed} from './sectors.js';
+import {createGallery,galleryOpen,galleryStart,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bunker5';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
-import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker4';
+import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker5';
 import {behavior, createHunt, huntingSpeed} from './hunt.js?v=extraction1';
 import {createCreatureAudio} from './creature-audio.js?v=attaques1';
 
@@ -845,6 +845,7 @@ function drawFrame(time){
         'Lampe : '+(flashlight.visible?'allumée':'éteinte')+' · Crédits : '+credits,
         'XR : '+(renderer.xr.isPresenting?'actif':'inactif')+' · Séquence : '+xrFrames+' images',
         'Graine : '+sectorSeed+' · Secteurs chargés : '+gallery.count,
+        'Signalétique : '+(eye.z>=galleryStart?({numbered:'numérotée',sparse:'rare',none:'absente'})[sectorLayout(sectorIndex(eye.z)).markings]:'s.o.'),
         'Secteur : '+(galleryEnabled()&&eye.z>=galleryStart?sectorIndex(eye.z)+' · '+sectorLayout(sectorIndex(eye.z)).name:'bunker fixe'),
       ].join('\n');
     }
@@ -881,7 +882,8 @@ function drawFrame(time){
   }
   let first=null,second=null,firstDistance=Infinity,secondDistance=Infinity;
   const outside=galleryEnabled()&&eye.z>=galleryStart;
-  el('floor').textContent=outside?'GALERIE '+(sectorIndex(eye.z)+1)+' · '+sectorLayout(sectorIndex(eye.z)).name:
+  const depth=outside?sectorIndex(eye.z):-1;
+  el('floor').textContent=outside?(depth<3?'GALERIE '+(depth+1)+' · '+sectorLayout(depth).name:'GALERIE DE SERVICE'):
     (session.level+1)+' / 3 · '+levelNames[session.level];
   for(const position of (outside?gallery.lamps:undefined)??station().lighting){
     const distance=position.distanceToSquared(eye);
