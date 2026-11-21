@@ -1,7 +1,7 @@
 import * as T from './three.js';
 import {GorillaLocomotion} from './locomotion.js?v=appuis1';
 import {batteryCapacity,createFieldLight,matchCapacity} from './field-light.js';
-import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bassin2';
+import {createGallery,galleryGround,galleryOpen,galleryStart,galleryWaterHeight,galleryWet,poolEntry,sectorIndex,sectorLayout,sectorSeed} from './sectors.js?v=bassin3';
 import {createFlatControls,createKeyboardState} from './flat-controls.js';
 import {createRooms} from './rooms.js?v=bunker2';
 import {buildStation, cellOf, cryoVapor, fits, hazmatMonkey, inShelter, itemModel, levelNames, metalGrating, monsterOpen, nextStep, passageAt, placard, predator, where, woundModel} from './station.js?v=bunker6';

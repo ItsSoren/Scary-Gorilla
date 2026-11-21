@@ -73,17 +73,51 @@ export function createWaterMaterial(){
 export function addCaustics(material,time){
   material.onBeforeCompile=shader=>{
     shader.uniforms.waterClock=time;
-    shader.vertexShader='varying vec2 poolXZ;\n'+shader.vertexShader.replace('#include <begin_vertex>',`
+    shader.vertexShader='varying vec2 poolXZ; varying float poolFace;\n'+shader.vertexShader.replace('#include <begin_vertex>',`
       #include <begin_vertex>
       poolXZ = (modelMatrix * instanceMatrix * vec4(position,1.0)).xz;
+      poolFace = abs(normal.y);
     `);
-    shader.fragmentShader='uniform float waterClock; varying vec2 poolXZ;\n'+shader.fragmentShader.replace('#include <tonemapping_fragment>',`
+    shader.fragmentShader='uniform float waterClock; varying vec2 poolXZ; varying float poolFace;\n'+shader.fragmentShader.replace('#include <tonemapping_fragment>',`
       vec2 p = poolXZ * 5.7;
+      p += vec2(sin(p.y*.21),cos(p.x*.19))*1.8;
       float wave = sin(p.x + sin(p.y*.87+waterClock*.9)*1.5 + waterClock*1.4);
       float crossWave = sin(p.y + sin(p.x*1.2-waterClock*1.1)*1.4);
-      float lattice = pow(max(0.0, 1.0-abs(wave+crossWave)), 10.0);
-      gl_FragColor.rgb += vec3(.018,.044,.034)*lattice;
+      float lattice = pow(max(0.0, 1.0-abs(wave+crossWave)), 6.0);
+      float shade = .65+.35*sin(poolXZ.x*1.4+cos(poolXZ.y*1.1));
+      gl_FragColor.rgb += vec3(.013,.030,.023)*lattice*shade*mix(.12,1.0,poolFace);
       #include <tonemapping_fragment>
+    `);
+  };
+}
+
+export function addConcreteWear(material){
+  material.onBeforeCompile=shader=>{
+    shader.vertexShader='varying vec3 concreteWorld;\n'+shader.vertexShader.replace('#include <begin_vertex>',`
+      #include <begin_vertex>
+      concreteWorld = (modelMatrix * instanceMatrix * vec4(position,1.0)).xyz;
+    `);
+    shader.fragmentShader=`
+      varying vec3 concreteWorld;
+      float concreteHash(vec2 point){
+        return fract(sin(dot(point,vec2(127.1,311.7)))*43758.5453);
+      }
+      float concreteNoise(vec2 point){
+        vec2 cell = floor(point), blend = fract(point);
+        blend = blend*blend*(3.0-2.0*blend);
+        return mix(mix(concreteHash(cell),concreteHash(cell+vec2(1,0)),blend.x),
+          mix(concreteHash(cell+vec2(0,1)),concreteHash(cell+vec2(1,1)),blend.x),blend.y);
+      }
+    `+shader.fragmentShader.replace('#include <color_fragment>',`
+      #include <color_fragment>
+      vec2 concrete = vec2(concreteWorld.x+concreteWorld.z,concreteWorld.y);
+      float aggregate = concreteNoise(concrete*54.0);
+      float stains = concreteNoise(concrete*2.1);
+      float drips = concreteNoise(concrete*vec2(16.0,.7));
+      float wetBand = 1.0-smoothstep(.12,1.12,concrete.y+stains*.25);
+      diffuseColor.rgb *= .57+aggregate*.32+stains*.38-wetBand*.22;
+      diffuseColor.rgb *= 1.0-.22*smoothstep(.58,.9,drips)*stains;
+      diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.06,.85),wetBand*.6);
     `);
   };
 }

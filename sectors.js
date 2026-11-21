@@ -1,6 +1,6 @@
 import * as T from './three.js';
 import {placard} from './station.js?v=bunker6';
-import {addCaustics,createWaterMaterial} from './gallery-water.js?v=bassin2';
+import {addCaustics,addConcreteWear,createWaterMaterial} from './gallery-water.js?v=bassin3';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;
@@ -81,6 +81,7 @@ export function createGallery(scene){
     pipe=new T.MeshStandardMaterial({color:'#765747',roughness:.74,metalness:.33}),
     basin=new T.MeshStandardMaterial({color:'#293d36',roughness:.79});
   addCaustics(basin,water.uniforms.time);
+  addConcreteWear(wall);
   const drops=new Float32Array(36*3),dropGeometry=new T.BufferGeometry();
   const dropPosition=new T.BufferAttribute(drops,3).setUsage(T.DynamicDrawUsage);
   dropGeometry.setAttribute('position',dropPosition);
