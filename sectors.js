@@ -1,6 +1,6 @@
 import * as T from './three.js';
 import {placard} from './station.js?v=bunker6';
-import {addCaustics,createWaterMaterial} from './gallery-water.js';
+import {addCaustics,createWaterMaterial} from './gallery-water.js?v=bassin2';
 
 export const sectorSeed=41729;
 export const galleryStart=26.25;

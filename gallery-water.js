@@ -52,8 +52,8 @@ export function createWaterMaterial(){
         color += lights * vec3(.44,.64,.57);
         float alpha = clamp(mix(.24,.78,fresnel) + lights*.36,0.0,.92);
         if(puddle>.5){
-          vec2 patch = (waterUV-.5)*2.0;
-          float outline = length(patch) + .085*sin(p.x*7.0+p.y*5.0) + .045*cos(p.y*13.0);
+          vec2 puddleOffset = (waterUV-.5)*2.0;
+          float outline = length(puddleOffset) + .085*sin(p.x*7.0+p.y*5.0) + .045*cos(p.y*13.0);
           alpha *= 1.0-smoothstep(.83,1.0,outline);
         }
         if(under){
